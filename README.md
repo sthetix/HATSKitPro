@@ -2,7 +2,9 @@
 
 A unified tool for building and managing HATS packs for Nintendo Switch CFW.
 
-<img src="image/preview.png" alt="HATSKit Pro Banner" width="75%">
+<div align="center">
+  <img src="image/preview.png" alt="HATSKit Pro Banner" width="75%">
+</div>
 
 ## Overview
 
@@ -180,9 +182,6 @@ HATSKit-Pro/
 ├── assets/
 │   └── skeleton.zip       # Base pack structure
 │
-├── icon/
-│   └── icon.ico           # Application icon
-│
 ├── image/
 │   └── preview.png        # Application preview image
 │
@@ -240,12 +239,6 @@ Without authentication, GitHub API limits you to 60 requests per hour. With a Pe
 ## Contributing
 
 Contributions are welcome! Please feel free to submit issues, feature requests, or pull requests.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
 
 ## License
 
