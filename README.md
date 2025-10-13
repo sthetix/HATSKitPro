@@ -52,6 +52,8 @@ HATSKit Pro is a comprehensive Windows application that simplifies the process o
 3. Double-click `HATSKitPro.exe` to launch the application
 
 **That's it!** The launcher will automatically:
+- Check if Dot.net is installed on your system
+- Install Dot.net if it's not present
 - Check if Python is installed on your system
 - Install Python if it's not present
 - Install all required dependencies (`ttkbootstrap`, `requests`)
