@@ -1,6 +1,6 @@
 # HATSKit Pro
 
-A unified tool for building and managing HATS packs for Nintendo Switch CFW.
+A unified tool for building and managing HATS packs.
 
 <div align="center">
   <img src="image/preview.png" alt="HATSKit Pro Banner" width="75%">
