@@ -2,7 +2,7 @@
 
 A unified tool for building and managing HATS packs for Nintendo Switch CFW.
 
-![HATSKit Pro Preview](image/preview.png)
+<img src="image/preview.png" alt="HATSKit Pro Banner" width="75%">
 
 ## Overview
 
