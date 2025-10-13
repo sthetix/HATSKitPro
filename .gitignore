@@ -1,0 +1,49 @@
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.pyc
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# User-specific configuration and build outputs
+# We DO NOT ignore components.json because it's essential app data.
+config.json
+manifest.json
+
+# Build artifacts, executables, and downloads
+build/
+dist/
+*.exe
+downloads/
+icon/
+
+# Archive and backup files in specific folders
+archive/
+*.rar
+*.7z
+*-backup*
+*backup*.zip
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Development notes
+claude.md
+notes.md
+todo.md
+
+# Log and temporary files
+*.log
+*.tmp
+*.temp
