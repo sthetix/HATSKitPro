@@ -22,6 +22,7 @@ dist/
 *.exe
 downloads/
 icon/
+releases/
 
 # Archive and backup files in specific folders
 archive/
