@@ -23,7 +23,6 @@
     },
     "asset_pattern": "AIO-Switch-Updater.zip",
     "category": "Homebrew Apps",
-    "default": false,
     "description": "Update everything from your Switch.",
     "name": "AIO-Switch-Updater",
     "processing_steps": [
@@ -198,7 +197,6 @@
     },
     "asset_pattern": "hekate_ctcaer_*.zip",
     "category": "Essential",
-    "default": false,
     "description": "Bootloader and tools. Essential.",
     "name": "Hekate + Nyx",
     "processing_steps": [
@@ -210,14 +208,6 @@
         "source_file_pattern": "hekate_ctcaer_*.bin",
         "target_filename": "payload.bin",
         "target_path": "/"
-      },
-      {
-        "action": "delete_file",
-        "path": "/hekate_ctcaer_*.bin"
-      },
-      {
-        "action": "delete_file",
-        "path": "/bootloader/hekate_ctcaer_*.bin"
       }
     ],
     "repo": "CTCaer/hekate",
@@ -372,7 +362,6 @@
     },
     "asset_pattern": "Quick-Reboot.ovl",
     "category": "Tesla Overlays",
-    "default": false,
     "description": "Reboot to payloads from the Tesla.",
     "name": "Quick-Reboot overlay",
     "processing_steps": [
@@ -584,7 +573,6 @@
     },
     "asset_pattern": "ovlmenu.ovl",
     "category": "Tesla Overlays",
-    "default": false,
     "description": "A new Tesla menu reimplementation.",
     "name": "Ultrahand Overlay",
     "processing_steps": [

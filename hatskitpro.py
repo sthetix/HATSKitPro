@@ -525,7 +525,7 @@ class HATSKitProGUI:
         ttk.Button(sd_frame, text="Browse...", bootstyle="primary").pack(side=LEFT, padx=5)
 
         # Download Official Pack Section
-        download_frame = ttk.LabelFrame(self.manager_tab, text="Download Official Pack", padding="10")
+        download_frame = ttk.LabelFrame(self.manager_tab, text="Download Official HATS Pack", padding="10")
         download_frame.pack(fill=X, padx=10, pady=(10, 5))
 
         # Top row: Release info
@@ -558,6 +558,41 @@ class HATSKitProGUI:
 
         # Hide progress initially
         self.download_progress_frame.pack_forget()
+
+        # Download Firmware Pack Section
+        firmware_frame = ttk.LabelFrame(self.manager_tab, text="Download Firmware Pack", padding="10")
+        firmware_frame.pack(fill=X, padx=10, pady=(10, 5))
+
+        # Top row: Firmware release info
+        firmware_info_row = ttk.Frame(firmware_frame)
+        firmware_info_row.pack(fill=X, pady=(0, 10))
+
+        ttk.Label(firmware_info_row, text="Latest Release:", font=('Segoe UI', 9, 'bold')).pack(side=LEFT, padx=(0, 5))
+        self.latest_firmware_label = ttk.Label(firmware_info_row, text="Checking...", font=('Segoe UI', 9))
+        self.latest_firmware_label.pack(side=LEFT, padx=(0, 10))
+
+        ttk.Button(firmware_info_row, text="Refresh", bootstyle="info-outline", width=10).pack(side=LEFT, padx=5)
+        ttk.Button(firmware_info_row, text="View on GitHub", bootstyle="secondary-outline", width=15).pack(side=LEFT, padx=5)
+
+        # Bottom row: Download button and progress
+        firmware_download_row = ttk.Frame(firmware_frame)
+        firmware_download_row.pack(fill=X)
+
+        self.firmware_download_btn = ttk.Button(firmware_download_row, text="Download Latest", bootstyle="success", width=20)
+        self.firmware_download_btn.pack(side=LEFT, padx=5)
+
+        # Progress bar (hidden by default)
+        self.firmware_progress_frame = ttk.Frame(firmware_download_row)
+        self.firmware_progress_frame.pack(side=LEFT, fill=X, expand=True, padx=10)
+
+        self.firmware_progress = ttk.Progressbar(self.firmware_progress_frame, mode='determinate', bootstyle="success-striped")
+        self.firmware_progress.pack(fill=X, side=TOP)
+
+        self.firmware_status_label = ttk.Label(self.firmware_progress_frame, text="", font=('Segoe UI', 8))
+        self.firmware_status_label.pack(side=TOP, anchor=W)
+
+        # Hide progress initially
+        self.firmware_progress_frame.pack_forget()
 
         # Pack Installer
         installer_frame = ttk.LabelFrame(self.manager_tab, text="Pack Installer", padding="10")
@@ -671,11 +706,20 @@ class HATSKitProGUI:
         info_frame.pack(fill=BOTH, expand=True)
             
         ttk.Label(info_frame, text=message, wraplength=350, justify=CENTER).pack(pady=20)
-            
+
         ttk.Button(info_frame, text="OK", command=dialog.destroy, bootstyle="primary").pack()
-            
+
         dialog.update_idletasks()
         self._do_center(dialog) # Center immediately without flicker
+
+        # Force window to front and gain focus (essential for popups from background threads)
+        dialog.lift()
+        dialog.attributes('-topmost', True)
+        dialog.after(100, lambda: dialog.attributes('-topmost', False))
+        dialog.focus_force()
+
+        # Re-center after lifting to ensure proper positioning
+        dialog.after(10, lambda: self._do_center(dialog))
 
         if blocking:
             self.root.wait_window(dialog)
