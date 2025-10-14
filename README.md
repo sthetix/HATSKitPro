@@ -30,6 +30,7 @@ HATSKit Pro is a comprehensive Windows application that simplifies the process o
 
 ### Pack Manager
 - Download official HATS packs directly from GitHub
+- Download official Firmware pack directly from Github
 - Install packs to your SD card with one click
 - View installed components with detailed information
 - Move components to trash bin for safe removal
