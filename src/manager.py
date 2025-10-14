@@ -32,11 +32,18 @@ class PackManager:
         self.GITHUB_REPO = "sthetix/HATS"
         self.GITHUB_API_URL = f"https://api.github.com/repos/{self.GITHUB_REPO}/releases/latest"
 
+        # Firmware repo info
+        self.FIRMWARE_REPO = "sthetix/NXFW"
+        self.FIRMWARE_API_URL = f"https://api.github.com/repos/{self.FIRMWARE_REPO}/releases/latest"
+        self.latest_firmware_info = None
+        self.firmware_download_thread = None
+
         # Connect event handlers
         self.connect_events()
 
         # Check for latest release on startup
         self.check_latest_release()
+        self.check_latest_firmware()
     
     def connect_events(self):
         """Connect event handlers to UI elements"""
@@ -69,11 +76,32 @@ class PackManager:
                     elif text == "Clear Selection":
                         child.config(command=self.manager_deselect_all)
                     elif text == "Download Latest":
-                        child.config(command=self.download_latest_pack)
+                        # Check parent to determine if HATS or Firmware
+                        parent = child.master
+                        while parent and not isinstance(parent, ttk.LabelFrame):
+                            parent = parent.master
+                        if parent and "Firmware" in parent.cget('text'):
+                            child.config(command=self.download_latest_firmware)
+                        else:
+                            child.config(command=self.download_latest_pack)
                     elif text == "Refresh":
-                        child.config(command=self.check_latest_release)
+                        # Check parent to determine if HATS or Firmware
+                        parent = child.master
+                        while parent and not isinstance(parent, ttk.LabelFrame):
+                            parent = parent.master
+                        if parent and "Firmware" in parent.cget('text'):
+                            child.config(command=self.check_latest_firmware)
+                        else:
+                            child.config(command=self.check_latest_release)
                     elif text == "View on GitHub":
-                        child.config(command=self.open_github_releases)
+                        # Check parent to determine if HATS or Firmware
+                        parent = child.master
+                        while parent and not isinstance(parent, ttk.LabelFrame):
+                            parent = parent.master
+                        if parent and "Firmware" in parent.cget('text'):
+                            child.config(command=self.open_github_firmware)
+                        else:
+                            child.config(command=self.open_github_releases)
                 find_buttons(child)
 
         find_buttons(self.gui.manager_tab)
@@ -583,12 +611,18 @@ class PackManager:
                 "File Exists",
                 f"The file {filename} already exists.\n\nDo you want to re-download it?",
                 yes_text="Re-download",
-                no_text="Use Existing"
+                no_text="Use Existing",
+                height=280
             ):
                 # User chose to use existing file
                 self.gui.pack_path.set(str(save_path))
-                self.gui.update_install_button_state()
-                self.gui.show_custom_info("Success", f"Using existing pack:\n{save_path}")
+                self.update_install_button_state()
+                self.gui.show_custom_info(
+                    "Using Existing Pack",
+                    f"Using existing pack:\n\n{save_path}\n\nYou can now install it to your SD card.",
+                    width=500,
+                    height=280
+                )
                 return
 
         # Disable download button
@@ -659,10 +693,181 @@ class PackManager:
         else:
             # Auto-populate pack path
             self.gui.pack_path.set(save_path)
-            self.gui.update_install_button_state()
-            self.gui.show_custom_info(
-                "Download Complete",
-                f"Pack downloaded successfully!\n\n{save_path}\n\nYou can now install it to your SD card.",
-                width=500,
+            self.update_install_button_state()
+
+            # Force GUI update before showing dialog
+            self.gui.root.update_idletasks()
+
+            # Delay the popup slightly to ensure all GUI updates complete
+            def show_completion_popup():
+                self.gui.show_custom_info(
+                    "Download Complete",
+                    f"Pack downloaded successfully!\n\n{save_path}\n\nYou can now install it to your SD card.",
+                    width=500,
+                    height=300
+                )
+
+            self.gui.root.after(200, show_completion_popup)
+
+    # ===== FIRMWARE DOWNLOAD FUNCTIONALITY =====
+
+    def check_latest_firmware(self):
+        """Check GitHub for the latest firmware release"""
+        def fetch_firmware():
+            try:
+                headers = {}
+                # Use GitHub PAT if available
+                if self.gui.github_pat.get():
+                    headers['Authorization'] = f'token {self.gui.github_pat.get()}'
+
+                response = requests.get(self.FIRMWARE_API_URL, headers=headers, timeout=10)
+                response.raise_for_status()
+                release_data = response.json()
+
+                self.latest_firmware_info = {
+                    'tag': release_data.get('tag_name', 'Unknown'),
+                    'name': release_data.get('name', 'Unknown'),
+                    'published_at': release_data.get('published_at', ''),
+                    'download_url': None,
+                    'size': 0
+                }
+
+                # Find the .zip asset
+                for asset in release_data.get('assets', []):
+                    if asset['name'].endswith('.zip'):
+                        self.latest_firmware_info['download_url'] = asset['browser_download_url']
+                        self.latest_firmware_info['size'] = asset['size']
+                        self.latest_firmware_info['filename'] = asset['name']
+                        break
+
+                # Update UI on main thread
+                self.gui.root.after(0, self.update_firmware_ui, True, None)
+
+            except requests.RequestException as e:
+                self.gui.root.after(0, self.update_firmware_ui, False, str(e))
+
+        # Run in background thread
+        threading.Thread(target=fetch_firmware, daemon=True).start()
+
+    def update_firmware_ui(self, success, error_msg):
+        """Update the UI with firmware release information"""
+        if success and self.latest_firmware_info:
+            release_text = f"{self.latest_firmware_info['tag']} ({self.format_size(self.latest_firmware_info['size'])})"
+            self.gui.latest_firmware_label.config(text=release_text, bootstyle="success")
+            self.gui.firmware_download_btn.config(state=NORMAL)
+        else:
+            error_text = "Failed to fetch"
+            if error_msg:
+                error_text += f" - {error_msg[:50]}"
+            self.gui.latest_firmware_label.config(text=error_text, bootstyle="danger")
+            self.gui.firmware_download_btn.config(state=DISABLED)
+
+    def open_github_firmware(self):
+        """Open GitHub firmware releases page in browser"""
+        webbrowser.open(f"https://github.com/{self.FIRMWARE_REPO}/releases")
+
+    def download_latest_firmware(self):
+        """Download the latest firmware pack with progress tracking"""
+        if not self.latest_firmware_info or not self.latest_firmware_info.get('download_url'):
+            self.gui.show_custom_info("Error", "No download URL available. Please refresh release info.")
+            return
+
+        # Create downloads directory
+        downloads_dir = Path("downloads")
+        downloads_dir.mkdir(exist_ok=True)
+
+        filename = self.latest_firmware_info.get('filename', 'FW-pack.zip')
+        save_path = downloads_dir / filename
+
+        # Check if already downloaded
+        if save_path.exists():
+            if not self.gui.show_custom_confirm(
+                "File Exists",
+                f"The file {filename} already exists.\n\nDo you want to re-download it?",
+                yes_text="Re-download",
+                no_text="Use Existing",
                 height=250
-            )
+            ):
+                # User chose to use existing file
+                self.gui.show_custom_info("Success", f"Using existing firmware pack:\n{save_path}")
+                return
+
+        # Disable download button
+        self.gui.firmware_download_btn.config(state=DISABLED)
+
+        # Show progress bar
+        self.gui.firmware_progress_frame.pack(side=LEFT, fill=X, expand=True, padx=10)
+        self.gui.firmware_progress['value'] = 0
+        self.gui.firmware_status_label.config(text="Starting download...")
+
+        def download_with_progress():
+            try:
+                # Get chunk size from config (default 2MB)
+                chunk_size = self.gui.config_data.get('download_chunk_size', 2 * 1024 * 1024)
+
+                headers = {}
+                if self.gui.github_pat.get():
+                    headers['Authorization'] = f'token {self.gui.github_pat.get()}'
+
+                response = requests.get(
+                    self.latest_firmware_info['download_url'],
+                    headers=headers,
+                    stream=True,
+                    timeout=30
+                )
+                response.raise_for_status()
+
+                total_size = int(response.headers.get('content-length', 0))
+                downloaded = 0
+
+                with open(save_path, 'wb') as f:
+                    for chunk in response.iter_content(chunk_size=chunk_size):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+
+                            # Update progress on main thread
+                            if total_size > 0:
+                                progress = (downloaded / total_size) * 100
+                                status_text = f"Downloaded: {self.format_size(downloaded)} / {self.format_size(total_size)} ({progress:.1f}%)"
+                                self.gui.root.after(0, self.update_firmware_progress, progress, status_text)
+
+                # Download complete
+                self.gui.root.after(0, self.firmware_download_complete, str(save_path), None)
+
+            except Exception as e:
+                self.gui.root.after(0, self.firmware_download_complete, None, str(e))
+
+        # Start download in background thread
+        self.firmware_download_thread = threading.Thread(target=download_with_progress, daemon=True)
+        self.firmware_download_thread.start()
+
+    def update_firmware_progress(self, progress, status_text):
+        """Update firmware download progress bar (runs on main thread)"""
+        self.gui.firmware_progress['value'] = progress
+        self.gui.firmware_status_label.config(text=status_text)
+
+    def firmware_download_complete(self, save_path, error_msg):
+        """Handle firmware download completion (runs on main thread)"""
+        # Hide progress bar
+        self.gui.firmware_progress_frame.pack_forget()
+
+        # Re-enable download button
+        self.gui.firmware_download_btn.config(state=NORMAL)
+
+        if error_msg:
+            self.gui.show_custom_info("Download Failed", f"Failed to download firmware pack:\n\n{error_msg}", width=450, height=250)
+        else:
+            # Force GUI update before showing dialog
+            self.gui.root.update_idletasks()
+
+            # Delay the popup slightly to ensure all GUI updates complete
+            def show_completion_popup():
+                self.gui.show_custom_info(
+                    "Download Complete",
+                    f"Firmware pack downloaded successfully!\n\n{save_path}\n\nYou can manually extract this to your SD card.",
+                    width=500,
+                    height=300
+                )
+
+            self.gui.root.after(200, show_completion_popup)

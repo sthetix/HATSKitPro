@@ -21,7 +21,7 @@
     "asset_info": {
       "version": "2.23.2"
     },
-    "asset_pattern": "AIO-Switch-Updater.zip",
+    "asset_pattern": "aio-switch-updater.zip",
     "category": "Homebrew Apps",
     "description": "Update everything from your Switch.",
     "name": "AIO-Switch-Updater",
