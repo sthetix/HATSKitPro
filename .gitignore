@@ -15,6 +15,7 @@ ENV/
 # We DO NOT ignore components.json because it's essential app data.
 config.json
 manifest.json
+HATSKitPro.config
 
 # Build artifacts, executables, and downloads
 build/
@@ -48,3 +49,7 @@ todo.md
 *.log
 *.tmp
 *.temp
+
+#claude
+.claude/
+

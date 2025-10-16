@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v1.0.0 - Main GUI Skeleton
+HATSKit Pro v1.1.0 - Main GUI Skeleton
 A unified tool for building and managing HATS packs
 """
 
@@ -17,8 +17,9 @@ import os
 from src.builder import PackBuilder
 from src.editor import ComponentEditor
 from src.manager import PackManager
+from src.extra import PostProcessor
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
@@ -64,7 +65,7 @@ class HATSKitProGUI:
     def __init__(self, root):
         self.root = root
         self.root.title(f"HATSKit Pro v{VERSION}")
-        self.root.geometry("1100x1100")
+        self.root.geometry("1100x1200")
         self.root.resizable(True, True)
         
         # Variables
@@ -90,10 +91,14 @@ class HATSKitProGUI:
         self.builder = PackBuilder(self)
         self.editor = ComponentEditor(self)
         self.manager = PackManager(self)
-        
+        self.post_processor = PostProcessor(self) # This module is now named extra.py
+
         # Populate initial data
         self.builder.populate_builder_list()
         self.editor.populate_editor_list()
+
+        # Initialize System Config SD status display
+        self.update_system_config_sd_status()
 
     def load_config(self):
         """Load config.json and apply settings"""
@@ -213,6 +218,11 @@ class HATSKitProGUI:
         self.manager_tab = ttk.Frame(self.notebook)
         self.notebook.add(self.manager_tab, text="Manager")
         self.create_manager_tab_ui()
+
+        # Tab 4: Post-Processing
+        self.postproc_tab = ttk.Frame(self.notebook)
+        self.notebook.add(self.postproc_tab, text="Extra Config")
+        self.create_postproc_tab_ui()
 
         # Status bar
         status_text = f"Loaded {len(self.components_data)} components"
@@ -364,7 +374,7 @@ class HATSKitProGUI:
         action_frame.pack(fill=X, padx=10, pady=5)
         
         ttk.Label(action_frame, text="Tip: Select components from the left list, then click Build Pack",
-                font=('Segoe UI', 8), bootstyle="secondary").pack(side=LEFT)
+                font=('Segoe UI', 8), bootstyle="warning").pack(side=LEFT)
         
         button_container = ttk.Frame(action_frame)
         button_container.pack(side=RIGHT)
@@ -522,7 +532,8 @@ class HATSKitProGUI:
         sd_frame.pack(fill=X, padx=10, pady=5)
 
         ttk.Entry(sd_frame, textvariable=self.sd_path, width=45).pack(side=LEFT, padx=5, fill=X, expand=True)
-        ttk.Button(sd_frame, text="Browse...", bootstyle="primary").pack(side=LEFT, padx=5)
+        ttk.Button(sd_frame, text="Browse...", bootstyle="primary",
+                   command=self.browse_sd_card_manager).pack(side=LEFT, padx=5)
 
         # Download Official Pack Section
         download_frame = ttk.LabelFrame(self.manager_tab, text="Download Official HATS Pack", padding="10")
@@ -669,9 +680,490 @@ class HATSKitProGUI:
 
         ttk.Button(button_container, text="Select All", bootstyle="secondary").pack(side=LEFT, padx=5)
         ttk.Button(button_container, text="Clear Selection", bootstyle="secondary").pack(side=LEFT, padx=5)
-    
+
+    def create_postproc_tab_ui(self):
+        """Create System Config tab UI for network configuration and system settings"""
+        # Info panel
+        info_frame = ttk.LabelFrame(self.postproc_tab, text="Information", padding="10")
+        info_frame.pack(fill=X, padx=10, pady=5)
+
+        ttk.Label(info_frame,
+                  text="Configure critical system settings for your SD card. Settings are auto-detected when you select an SD card.\n"
+                       "Adjust network modes, Hekate boot menu options, and USB 3.0 settings, then click 'Save All Settings' to apply.",
+                  font=('Segoe UI', 9)).pack()
+
+        # SD Card path selection - Smart status display
+        sd_frame = ttk.LabelFrame(self.postproc_tab, text="SD Card Location", padding="10")
+        sd_frame.pack(fill=X, padx=10, pady=10)
+
+        # Status display that shows current path or prompts user to select
+        self.system_config_sd_status = ttk.Label(sd_frame, text="", font=('Segoe UI', 9), anchor=W)
+        self.system_config_sd_status.pack(side=LEFT, padx=5, fill=X, expand=True)
+
+        # Browse button for selecting SD card
+        ttk.Button(sd_frame, text="Select SD Card...", bootstyle="primary",
+                   command=self.browse_sd_card_system_config).pack(side=LEFT, padx=5)
+
+        # Main configuration container - 2 columns
+        config_container = ttk.Frame(self.postproc_tab, padding="0")
+        # AFTER
+        config_container.pack(fill=BOTH, expand=True, padx=10, pady=5)
+
+        # Configure grid weights for equal distribution
+        config_container.grid_rowconfigure(0, weight=1)  # Don't expand vertically
+        config_container.grid_columnconfigure(0, weight=3)  # Left column takes 60% width
+        config_container.grid_columnconfigure(1, weight=2)  # Right column takes 40% width
+
+        # LEFT COLUMN: Network Modes
+        left_column = ttk.LabelFrame(config_container, text="Network Modes", padding="15")
+        left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
+
+        # Network mode radio buttons
+        self.network_mode_var = ttk.StringVar(value='default')
+
+        # Mode 1: Default (Both Offline) - Safe
+        self.mode1_frame = ttk.LabelFrame(left_column, text="Default Mode (Safest)", padding="10", bootstyle="secondary")
+        self.mode1_frame.pack(fill=X, pady=5)
+
+        self.network_radio_default = ttk.Radiobutton(self.mode1_frame,
+                                                     text="Both sysMMC CFW and emuMMC offline",
+                                                     variable=self.network_mode_var,
+                                                     value='default',
+                                                     bootstyle="success",
+                                                     state=DISABLED)
+        self.network_radio_default.pack(anchor=W)
+        self.mode1_label = ttk.Label(self.mode1_frame,
+                                     text="• All Nintendo connections blocked\n• Safest option to prevent bans\n• Recommended for most users",
+                                     font=('Segoe UI', 9),
+                                     bootstyle="secondary")
+        self.mode1_label.pack(anchor=W, padx=(20, 0))
+
+        # Mode 2: sysMMC Online
+        self.mode2_frame = ttk.LabelFrame(left_column, text="sysMMC CFW Online", padding="10", bootstyle="secondary")
+        self.mode2_frame.pack(fill=X, pady=5)
+
+        self.network_radio_sysmmc = ttk.Radiobutton(self.mode2_frame,
+                                                    text="sysMMC CFW online, emuMMC offline",
+                                                    variable=self.network_mode_var,
+                                                    value='sysmmc_online',
+                                                    bootstyle="warning",
+                                                    state=DISABLED)
+        self.network_radio_sysmmc.pack(anchor=W)
+        self.mode2_label = ttk.Label(self.mode2_frame,
+                                     text="• sysMMC can connect to Nintendo\n• Risk of ban if detected\n• For playing legitimate games online",
+                                     font=('Segoe UI', 9),
+                                     bootstyle="secondary")
+        self.mode2_label.pack(anchor=W, padx=(20, 0))
+
+        # Mode 3: emuMMC Online
+        self.mode3_frame = ttk.LabelFrame(left_column, text="emuMMC Online", padding="10", bootstyle="secondary")
+        self.mode3_frame.pack(fill=X, pady=5)
+
+        self.network_radio_emummc = ttk.Radiobutton(self.mode3_frame,
+                                                    text="emuMMC online, sysMMC CFW offline",
+                                                    variable=self.network_mode_var,
+                                                    value='emummc_online',
+                                                    bootstyle="warning",
+                                                    state=DISABLED)
+        self.network_radio_emummc.pack(anchor=W)
+        self.mode3_label = ttk.Label(self.mode3_frame,
+                                     text="• emuMMC can connect to Nintendo\n• Still risk of console ban\n• For advanced users who accept the risk",
+                                     font=('Segoe UI', 9),
+                                     bootstyle="secondary")
+        self.mode3_label.pack(anchor=W, padx=(20, 0))
+
+        # Mode 4: Both Online - Dangerous
+        self.mode4_frame = ttk.LabelFrame(left_column, text="Both Online (Maximum Risk)", padding="10", bootstyle="secondary")
+        self.mode4_frame.pack(fill=X, pady=5)
+
+        self.network_radio_both = ttk.Radiobutton(self.mode4_frame,
+                                                  text="Both sysMMC CFW and emuMMC online",
+                                                  variable=self.network_mode_var,
+                                                  value='both_online',
+                                                  bootstyle="danger",
+                                                  state=DISABLED)
+        self.network_radio_both.pack(anchor=W)
+        self.mode4_label = ttk.Label(self.mode4_frame,
+                                     text="• No protection active, highly dangerous\n• Maximum ban risk\n• Console identifiers are fully exposed",
+                                     font=('Segoe UI', 9),
+                                     bootstyle="secondary")
+        self.mode4_label.pack(anchor=W, padx=(20, 0))
+
+        # RIGHT COLUMN: Hekate Boot Config + USB 3.0
+        right_column = ttk.Frame(config_container)
+        right_column.grid(row=0, column=1, sticky="nsew", padx=(5, 0))
+
+        # Configure right column grid for equal split
+        right_column.grid_rowconfigure(0, weight=1)  # Top half
+        right_column.grid_rowconfigure(1, weight=1)  # Bottom half
+        right_column.grid_columnconfigure(0, weight=1)
+
+        # TOP RIGHT: Hekate Boot Menu Configuration
+        hekate_frame = ttk.LabelFrame(right_column, text="Hekate Boot Menu", padding="15")
+        hekate_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
+
+        self.hekate_info_label = ttk.Label(hekate_frame,
+                                           text="Select boot options to show in menu:",
+                                           font=('Segoe UI', 9),
+                                           bootstyle="secondary")
+        self.hekate_info_label.pack(anchor=W, pady=(0, 5))
+
+        # Create variables for each boot option
+        self.hekate_semistock_var = ttk.BooleanVar(value=True)
+        self.hekate_sysmmc_var = ttk.BooleanVar(value=True)
+        self.hekate_emummc_var = ttk.BooleanVar(value=True)
+
+        # Semi-Stock option
+        self.hekate_semistock_toggle = ttk.Checkbutton(hekate_frame,
+                                                       text="Semi-Stock (SYSMMC)",
+                                                       variable=self.hekate_semistock_var,
+                                                       bootstyle="secondary-round-toggle",
+                                                       state=DISABLED)
+        self.hekate_semistock_toggle.pack(anchor=W, pady=2)
+
+        # CFW SysMMC option
+        self.hekate_sysmmc_toggle = ttk.Checkbutton(hekate_frame,
+                                                    text="CFW (SYSMMC)",
+                                                    variable=self.hekate_sysmmc_var,
+                                                    bootstyle="secondary-round-toggle",
+                                                    state=DISABLED)
+        self.hekate_sysmmc_toggle.pack(anchor=W, pady=2)
+
+        # CFW EmuMMC option
+        self.hekate_emummc_toggle = ttk.Checkbutton(hekate_frame,
+                                                    text="CFW (EMUMMC)",
+                                                    variable=self.hekate_emummc_var,
+                                                    bootstyle="secondary-round-toggle",
+                                                    state=DISABLED)
+        self.hekate_emummc_toggle.pack(anchor=W, pady=2)
+
+        self.hekate_warning_label = ttk.Label(hekate_frame,
+                                              text="⚠ At least one option must be enabled",
+                                              font=('Segoe UI', 7),
+                                              bootstyle="secondary")
+        self.hekate_warning_label.pack(anchor=W, pady=(5, 0))
+
+        # BOTTOM RIGHT: USB 3.0 Settings
+        usb_frame = ttk.LabelFrame(right_column, text="USB 3.0 Settings", padding="15")
+        usb_frame.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+
+        self.usb_info_label = ttk.Label(usb_frame,
+                                        text="Enable USB 3.0 superspeed for homebrew:",
+                                        font=('Segoe UI', 9),
+                                        bootstyle="secondary")
+        self.usb_info_label.pack(anchor=W, pady=(0, 5))
+
+        # USB 3.0 toggle
+        self.usb30_var = ttk.BooleanVar(value=False)
+        self.usb30_toggle = ttk.Checkbutton(usb_frame,
+                                            text="Enable USB 3.0 Superspeed",
+                                            variable=self.usb30_var,
+                                            bootstyle="secondary-round-toggle",
+                                            state=DISABLED)
+        self.usb30_toggle.pack(anchor=W, pady=2)
+
+        self.usb_warning_label = ttk.Label(usb_frame,
+                                           text="Enables faster USB transfer speeds\nfor homebrew applications",
+                                           font=('Segoe UI', 8),
+                                           bootstyle="secondary")
+        self.usb_warning_label.pack(anchor=W, padx=(20, 0), pady=(5, 0))
+
+        # Bottom action bar
+        action_frame = ttk.Frame(self.postproc_tab, padding="10")
+        action_frame.pack(fill=X, padx=10, pady=(5, 10))
+
+        # Save button (primary action)
+        ttk.Button(action_frame,
+                   text="Save All Settings",
+                   bootstyle="success",
+                   width=20,
+                   command=self.save_all_system_settings).pack(side=RIGHT, padx=5)
+
+        # Show current config button
+        ttk.Button(action_frame,
+                   text="Show Current Configuration",
+                   bootstyle="info-outline",
+                   command=lambda: self.post_processor.show_current_config(self.sd_path.get())
+                   ).pack(side=RIGHT, padx=5)
+
+        ttk.Label(action_frame,
+                  text="💡 Settings are auto-detected when you select an SD card",
+                  font=('Segoe UI', 8),
+                  bootstyle="warning").pack(side=LEFT, padx=5)
+
     # ===== HELPER METHODS =====
-    
+
+    def browse_sd_card_manager(self):
+        """Browse for SD card from Manager tab (silent, no popup)"""
+        from tkinter import filedialog
+        path = filedialog.askdirectory(title="Select SD Card Root Directory")
+        if path:
+            self.sd_path.set(path)
+            self.update_system_config_sd_status()
+
+            # Update the Manager tab's install button state
+            if hasattr(self, 'manager'):
+                self.manager.update_install_button_state()
+
+            # Silently auto-detect settings without showing popup
+            self.auto_detect_system_settings_silent()
+
+    def browse_sd_card_system_config(self):
+        """Browse for SD card from System Config tab (shows popup)"""
+        from tkinter import filedialog
+        path = filedialog.askdirectory(title="Select SD Card Root Directory")
+        if path:
+            self.sd_path.set(path)
+            self.update_system_config_sd_status()
+
+            # Auto-detect all settings from the SD card with popup
+            self.auto_detect_system_settings()
+
+            # Also update the Manager tab's install button state if needed
+            if hasattr(self, 'manager'):
+                self.manager.update_install_button_state()
+
+    def auto_detect_system_settings_silent(self):
+        """Auto-detect all system settings from the current SD card (silent, no popups)"""
+        sd_path = self.sd_path.get()
+        if not sd_path:
+            return
+
+        # Detect all settings
+        settings = self.post_processor.detect_all_settings(sd_path)
+
+        if settings is None:
+            # Files not found, set defaults but don't show popup
+            self.hekate_semistock_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+            self.hekate_sysmmc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+            self.hekate_emummc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+            self.hekate_semistock_var.set(True)
+            self.hekate_sysmmc_var.set(True)
+            self.hekate_emummc_var.set(True)
+            self.hekate_semistock_toggle.config(state=DISABLED)
+            self.hekate_sysmmc_toggle.config(state=DISABLED)
+            self.hekate_emummc_toggle.config(state=DISABLED)
+            return
+
+        # Enable all controls now that we have settings
+        self.network_radio_default.config(state=NORMAL)
+        self.network_radio_sysmmc.config(state=NORMAL)
+        self.network_radio_emummc.config(state=NORMAL)
+        self.network_radio_both.config(state=NORMAL)
+
+        # Update network mode frame styles
+        self.mode1_frame.config(bootstyle="success")
+        self.mode1_label.config(bootstyle="success")
+
+        self.mode2_frame.config(bootstyle="warning")
+        self.mode2_label.config(bootstyle="warning")
+
+        self.mode3_frame.config(bootstyle="warning")
+        self.mode3_label.config(bootstyle="warning")
+
+        self.mode4_frame.config(bootstyle="danger")
+        self.mode4_label.config(bootstyle="danger")
+
+        # Update Network Mode
+        if settings['network_mode']:
+            self.network_mode_var.set(settings['network_mode'])
+
+        # Update Hekate Config
+        if settings['hekate_config']:
+            self.hekate_semistock_var.set(settings['hekate_config']['semistock'])
+            self.hekate_sysmmc_var.set(settings['hekate_config']['sysmmc'])
+            self.hekate_emummc_var.set(settings['hekate_config']['emummc'])
+
+        # Enable Hekate toggles and set their active style
+        self.hekate_semistock_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+        self.hekate_sysmmc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+        self.hekate_emummc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+        self.hekate_info_label.config(bootstyle="default")
+        self.hekate_warning_label.config(bootstyle="warning")
+
+        # Enable USB 3.0 labels and set their active style
+        self.usb_info_label.config(bootstyle="default")
+        self.usb_warning_label.config(bootstyle="warning")
+
+        # Update USB 3.0
+        if settings['usb30_enabled'] is not None:
+            self.usb30_var.set(settings['usb30_enabled'])
+
+        # Enable the toggle and set its active style
+        self.usb30_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+
+        # No popup shown in silent mode
+
+    def auto_detect_system_settings(self):
+        """Auto-detect all system settings from the current SD card"""
+        sd_path = self.sd_path.get()
+        if not sd_path:
+            return
+
+        # Detect all settings
+        settings = self.post_processor.detect_all_settings(sd_path)
+
+        if settings is None:
+            # Files not found, show warning in status
+            self.show_custom_info(
+                "No Configuration Found",
+                "Could not find configuration files on the selected SD card.\n\n"
+                "Please ensure you've extracted a HATS pack to this SD card first.\n\n"
+                "You can still configure settings, they will be applied when you save.",
+                width=500,
+                height=280
+            )
+            # Keep Hekate toggles disabled but set to a default state
+            self.hekate_semistock_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+            self.hekate_sysmmc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+            self.hekate_emummc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+            self.hekate_semistock_var.set(True)
+            self.hekate_sysmmc_var.set(True)
+            self.hekate_emummc_var.set(True)
+            self.hekate_semistock_toggle.config(state=DISABLED)
+            self.hekate_sysmmc_toggle.config(state=DISABLED)
+            self.hekate_emummc_toggle.config(state=DISABLED)
+            return
+
+        # Enable all controls now that we have settings
+        self.network_radio_default.config(state=NORMAL)
+        self.network_radio_sysmmc.config(state=NORMAL)
+        self.network_radio_emummc.config(state=NORMAL)
+        self.network_radio_both.config(state=NORMAL)
+
+        # Update network mode frame styles
+        self.mode1_frame.config(bootstyle="success")
+        self.mode1_label.config(bootstyle="success")
+
+        self.mode2_frame.config(bootstyle="warning")
+        self.mode2_label.config(bootstyle="warning")
+
+        self.mode3_frame.config(bootstyle="warning")
+        self.mode3_label.config(bootstyle="warning")
+
+        self.mode4_frame.config(bootstyle="danger")
+        self.mode4_label.config(bootstyle="danger")
+
+        # Update Network Mode
+        if settings['network_mode']:
+            self.network_mode_var.set(settings['network_mode'])
+
+        # Update Hekate Config
+        if settings['hekate_config']:
+            self.hekate_semistock_var.set(settings['hekate_config']['semistock'])
+            self.hekate_sysmmc_var.set(settings['hekate_config']['sysmmc'])
+            self.hekate_emummc_var.set(settings['hekate_config']['emummc'])
+        
+        # Enable Hekate toggles and set their active style
+        self.hekate_semistock_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+        self.hekate_sysmmc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+        self.hekate_emummc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+        self.hekate_info_label.config(bootstyle="default")
+        self.hekate_warning_label.config(bootstyle="warning")
+
+        # Enable USB 3.0 labels and set their active style
+        self.usb_info_label.config(bootstyle="default")
+        self.usb_warning_label.config(bootstyle="warning")
+
+        # Update USB 3.0
+        if settings['usb30_enabled'] is not None:
+            self.usb30_var.set(settings['usb30_enabled'])
+        
+        # Enable the toggle and set its active style
+        self.usb30_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
+
+        # Show success message
+        network_names = {
+            'default': 'Both Offline (Default)',
+            'sysmmc_online': 'sysMMC Online',
+            'emummc_online': 'emuMMC Online',
+            'both_online': 'Both Online'
+        }
+        network_desc = network_names.get(settings['network_mode'], 'Unknown')
+        usb_status = "Enabled" if settings['usb30_enabled'] else "Disabled"
+
+        boot_options = []
+        if settings['hekate_config']:
+            if settings['hekate_config']['semistock']:
+                boot_options.append("Semi-Stock")
+            if settings['hekate_config']['sysmmc']:
+                boot_options.append("CFW (SYSMMC)")
+            if settings['hekate_config']['emummc']:
+                boot_options.append("CFW (EMUMMC)")
+        boot_desc = ", ".join(boot_options) if boot_options else "None"
+
+        self.show_custom_info(
+            "Settings Detected",
+            f"Current configuration detected from SD card:\n\n"
+            f"Network Mode: {network_desc}\n"
+            f"Hekate Boot Options: {boot_desc}\n"
+            f"USB 3.0: {usb_status}\n\n"
+            f"You can modify these settings and click 'Save All Settings' to apply changes.",
+            width=550,
+            height=400
+        )
+
+    def save_all_system_settings(self):
+        """Save all system settings at once"""
+        sd_path = self.sd_path.get()
+        if not sd_path:
+            self.show_custom_info("Error", "Please select an SD card first", width=400, height=180)
+            return
+
+        # Get current UI values
+        network_mode = self.network_mode_var.get()
+        enable_semistock = self.hekate_semistock_var.get()
+        enable_sysmmc = self.hekate_sysmmc_var.get()
+        enable_emummc = self.hekate_emummc_var.get()
+        enable_usb30 = self.usb30_var.get()
+
+        # Show warning for risky network modes
+        if network_mode in ['sysmmc_online', 'emummc_online', 'both_online']:
+            warnings = {
+                'sysmmc_online': "sysMMC CFW will be able to connect to Nintendo.\nYour console may be banned if detected.",
+                'emummc_online': "emuMMC will be able to connect to Nintendo.\nYour console may still be banned.",
+                'both_online': "Both sysMMC CFW and emuMMC will be online.\nMAXIMUM BAN RISK - extremely dangerous!"
+            }
+
+            confirm = self.show_custom_confirm(
+                "⚠ WARNING - Ban Risk",
+                f"{warnings[network_mode]}\n\nAre you sure you want to continue?",
+                yes_text="Yes, Apply Settings",
+                no_text="Cancel",
+                style="danger",
+                width=500,
+                height=280
+            )
+
+            if not confirm:
+                return
+
+        # Call the unified save method
+        self.post_processor.save_all_settings(
+            sd_path,
+            network_mode,
+            enable_semistock,
+            enable_sysmmc,
+            enable_emummc,
+            enable_usb30
+        )
+
+    def update_system_config_sd_status(self):
+        """Update the SD card status display in System Config tab"""
+        current_path = self.sd_path.get()
+        if current_path and current_path.strip():
+            # Show path with checkmark
+            self.system_config_sd_status.config(
+                text=f"✓ {current_path}",
+                bootstyle="success"
+            )
+        else:
+            # Show prompt to select
+            self.system_config_sd_status.config(
+                text="⚠ No SD card selected - Click 'Select SD Card...' to choose",
+                bootstyle="warning"
+            )
+
     def center_window(self, window):
         """Center a popup window on the main window"""
         # This function is now a wrapper to call the actual centering logic

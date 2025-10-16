@@ -530,7 +530,7 @@ class PackBuilder:
             self.fetch_button.config(state=NORMAL),
             close_button.config(state=NORMAL),
             self.update_builder_preview(), # Update the preview to show new versions
-            self.gui.show_custom_info("Fetch Complete", summary, parent=window, height=250)
+            self.gui.show_custom_info("Fetch Complete", summary, parent=window, height=230)
         ])
 
     def show_build_progress(self, selected, output_file):

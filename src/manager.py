@@ -107,12 +107,16 @@ class PackManager:
         find_buttons(self.gui.manager_tab)
     
     def manager_browse_sd(self):
-        """Browse for SD card"""
+        """Browse for SD card (silent mode - no popups)"""
         folder = filedialog.askdirectory(title="Select SD Card Root Folder")
         if folder:
             self.gui.sd_path.set(folder)
             self.update_install_button_state()
             self.manager_refresh()
+            # Update System Config tab status display
+            self.gui.update_system_config_sd_status()
+            # Silently auto-detect settings for Extra Config tab (no popup)
+            self.gui.auto_detect_system_settings_silent()
     
     def manager_refresh(self):
         """Refresh manager view"""
