@@ -1171,18 +1171,21 @@ class HATSKitProGUI:
         window.after(10, lambda: self._do_center(window))
 
     def _do_center(self, window):
+        # Update both parent and child window to get accurate current positions
+        self.root.update_idletasks()
         window.update_idletasks()
+
         parent_x = self.root.winfo_x()
         parent_y = self.root.winfo_y()
         parent_w = self.root.winfo_width()
         parent_h = self.root.winfo_height()
-        
+
         window_w = window.winfo_width()
         window_h = window.winfo_height()
-        
+
         x = parent_x + (parent_w // 2) - (window_w // 2)
         y = parent_y + (parent_h // 2) - (window_h // 2)
-        
+
         window.geometry(f"+{x}+{y}")
 
     def show_custom_info(self, title, message, parent=None, blocking=True, width=400, height=200):
