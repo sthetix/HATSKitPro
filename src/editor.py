@@ -19,7 +19,8 @@ class ComponentEditor:
         """Initialize with reference to main GUI"""
         self.gui = main_gui
         self.current_selection = None
-        
+        self.temp_asset_configs = {}  # Temporary storage for asset configs being edited
+
         # Connect event handlers
         self.connect_events()
     
@@ -49,6 +50,27 @@ class ComponentEditor:
                 find_buttons(child)
         
         find_buttons(self.gui.editor_tab)
+
+        # Find the assets button frame and add buttons vertically
+        def find_btn_frame(parent, depth=0, max_depth=3):
+            if depth > max_depth:
+                return None
+            for child in parent.winfo_children():
+                if isinstance(child, ttk.Frame):
+                    # Check if this looks like a button frame (empty or has only buttons)
+                    children = child.winfo_children()
+                    if len(children) == 0:  # Empty frame - this is our button frame
+                        return child
+                    result = find_btn_frame(child, depth + 1, max_depth)
+                    if result:
+                        return result
+            return None
+
+        assets_btn_frame = find_btn_frame(self.gui.editor_assets_frame)
+        if assets_btn_frame:
+            ttk.Button(assets_btn_frame, text="+ Add", bootstyle="success-outline", command=self.add_asset_pattern, width=10).pack(pady=2)
+            ttk.Button(assets_btn_frame, text="Edit", bootstyle="info-outline", command=self.edit_asset_pattern, width=10).pack(pady=2)
+            ttk.Button(assets_btn_frame, text="Remove", bootstyle="danger-outline", command=self.remove_asset_pattern, width=10).pack(pady=2)
 
         # Find buttons in the steps frame
         steps_frame = self.gui.editor_form.grid_slaves(row=12, column=0)[0]
@@ -146,16 +168,27 @@ class ComponentEditor:
         else:  # github_release
             self.gui.editor_repo.delete(0, END)
             self.gui.editor_repo.insert(0, comp_data.get('repo', ''))
-            self.gui.editor_pattern.delete(0, END)
-            self.gui.editor_pattern.insert(0, comp_data.get('asset_pattern', ''))
 
-        # Populate processing steps
-        steps = comp_data.get('processing_steps', [])
-        for step in steps:
-            action = step.get('action', 'N/A')
-            details = ', '.join([f"{k}='{v}'" for k, v in step.items() if k != 'action'])
-            display = f"{action}: {details}" if details else action
-            self.gui.editor_steps_list.insert('', END, values=(display,))
+            # Check if multi-asset or single asset
+            if 'asset_patterns' in comp_data:
+                # Multi-asset format - populate assets list and temp storage
+                self.temp_asset_configs.clear()
+                for asset_config in comp_data['asset_patterns']:
+                    pattern = asset_config.get('pattern', '')
+                    item_id = self.gui.editor_assets_list.insert('', END, values=(pattern,))
+                    self.temp_asset_configs[item_id] = asset_config
+            else:
+                # Single asset format - for backward compatibility
+                self.gui.editor_pattern.delete(0, END)
+                self.gui.editor_pattern.insert(0, comp_data.get('asset_pattern', ''))
+
+                # Populate processing steps (old format)
+                steps = comp_data.get('processing_steps', [])
+                for step in steps:
+                    action = step.get('action', 'N/A')
+                    details = ', '.join([f"{k}='{v}'" for k, v in step.items() if k != 'action'])
+                    display = f"{action}: {details}" if details else action
+                    self.gui.editor_steps_list.insert('', END, values=(display,))
 
     def clear_form(self):
         """Clear all fields in the editor form."""
@@ -170,6 +203,9 @@ class ComponentEditor:
         self.gui.editor_url.delete(0, END)
         for item in self.gui.editor_steps_list.get_children():
             self.gui.editor_steps_list.delete(item)
+        for item in self.gui.editor_assets_list.get_children():
+            self.gui.editor_assets_list.delete(item)
+        self.temp_asset_configs.clear()
 
     def add_new_component(self):
         """Add new component with proper initialization"""
@@ -288,18 +324,29 @@ class ComponentEditor:
                 extracted_version = "N/A"
         else:  # github_release
             repo = self.gui.editor_repo.get().strip()
-            pattern = self.gui.editor_pattern.get().strip()
             if not repo:
                 self.gui.show_custom_info("Validation Error", "Repository cannot be empty for GitHub releases.")
                 comp_id_entry.config(state=DISABLED if not is_new_component else NORMAL)
                 return
-            if not pattern:
-                self.gui.show_custom_info("Validation Error", "Asset pattern cannot be empty for GitHub releases.")
-                comp_id_entry.config(state=DISABLED if not is_new_component else NORMAL)
-                return
-            repo_value = repo
-            asset_pattern = pattern
-            extracted_version = None  # Will be fetched later
+
+            # Check if using multi-asset or single-asset format
+            asset_list_items = self.gui.editor_assets_list.get_children()
+
+            if asset_list_items:
+                # Multi-asset format - must have at least one asset
+                repo_value = repo
+                asset_pattern = None  # Not used in multi-asset format
+                extracted_version = None
+            else:
+                # Single-asset format (backward compatibility)
+                pattern = self.gui.editor_pattern.get().strip()
+                if not pattern:
+                    self.gui.show_custom_info("Validation Error", "Asset pattern cannot be empty.\n\nTip: Use '+ Add Asset' to add asset patterns with individual processing steps.")
+                    comp_id_entry.config(state=DISABLED if not is_new_component else NORMAL)
+                    return
+                repo_value = repo
+                asset_pattern = pattern
+                extracted_version = None  # Will be fetched later
 
         # Collect data from form
         # Preserve existing asset_info or create new one
@@ -315,15 +362,61 @@ class ComponentEditor:
             "description": self.gui.editor_description.get('1.0', END).strip(),
             "source_type": source_type,
             "repo": repo_value,
-            "asset_pattern": asset_pattern,
-            "asset_info": existing_asset_info,
-            "processing_steps": []  # Will be populated below
+            "asset_info": existing_asset_info
         }
 
-        # Rebuild processing_steps from the Treeview
-        for item_id in self.gui.editor_steps_list.get_children():
-            step_str = self.gui.editor_steps_list.item(item_id, 'values')[0]
-            new_data['processing_steps'].append(self._parse_step_string(step_str))
+        # Handle asset patterns (multi-asset vs single-asset)
+        if source_type == 'github_release':
+            asset_list_items = self.gui.editor_assets_list.get_children()
+
+            if asset_list_items:
+                # Multi-asset format
+                asset_patterns = []
+
+                # Get asset configs from temp storage
+                for item_id in asset_list_items:
+                    if item_id in self.temp_asset_configs:
+                        asset_patterns.append(self.temp_asset_configs[item_id])
+                    else:
+                        # Fallback: try to get from existing component data
+                        pattern = self.gui.editor_assets_list.item(item_id, 'values')[0]
+                        comp_data = self.gui.components_data.get(self.current_selection or comp_id, {})
+                        existing_asset_patterns = comp_data.get('asset_patterns', [])
+
+                        asset_config = None
+                        for existing_asset in existing_asset_patterns:
+                            if existing_asset.get('pattern') == pattern:
+                                asset_config = existing_asset
+                                break
+
+                        if asset_config:
+                            asset_patterns.append(asset_config)
+                        else:
+                            # Default config if not found
+                            asset_patterns.append({
+                                'pattern': pattern,
+                                'processing_steps': []
+                            })
+
+                new_data['asset_patterns'] = asset_patterns
+            else:
+                # Single-asset format (backward compatibility)
+                new_data['asset_pattern'] = asset_pattern
+
+                # Rebuild processing_steps from the Treeview (legacy format)
+                processing_steps = []
+                for item_id in self.gui.editor_steps_list.get_children():
+                    step_str = self.gui.editor_steps_list.item(item_id, 'values')[0]
+                    processing_steps.append(self._parse_step_string(step_str))
+                new_data['processing_steps'] = processing_steps
+        else:
+            # direct_url source type - keep legacy processing_steps
+            new_data['asset_pattern'] = asset_pattern
+            processing_steps = []
+            for item_id in self.gui.editor_steps_list.get_children():
+                step_str = self.gui.editor_steps_list.item(item_id, 'values')[0]
+                processing_steps.append(self._parse_step_string(step_str))
+            new_data['processing_steps'] = processing_steps
 
         # If we are renaming a component (ID changed), we need to remove the old one
         if not is_new_component and comp_id != self.current_selection:
@@ -605,3 +698,263 @@ class ComponentEditor:
                                         yes_text="Remove", style="danger"):
             for item_id in selected:
                 self.gui.editor_steps_list.delete(item_id)
+
+    # ==================== Multi-Asset Pattern Management ====================
+
+    def add_asset_pattern(self, asset_to_edit=None, item_id=None):
+        """Add or edit an asset pattern with its own processing steps."""
+        asset_dialog = ttk.Toplevel(self.gui.root)
+        asset_dialog.title("Add Asset Pattern" if not asset_to_edit else "Edit Asset Pattern")
+        asset_dialog.geometry("600x500")
+        asset_dialog.transient(self.gui.root)
+        asset_dialog.grab_set()
+
+        # Asset pattern entry
+        ttk.Label(asset_dialog, text="Asset Pattern:", font=('Segoe UI', 9, 'bold')).pack(pady=(10, 5), padx=10, anchor=W)
+        pattern_entry = ttk.Entry(asset_dialog, width=50)
+        pattern_entry.pack(pady=(0, 10), padx=10, fill=X)
+
+        if asset_to_edit:
+            pattern_entry.insert(0, asset_to_edit.get('pattern', ''))
+
+        # Processing steps for this asset
+        ttk.Label(asset_dialog, text="Processing Steps:", font=('Segoe UI', 9, 'bold')).pack(pady=(10, 5), padx=10, anchor=W)
+
+        steps_frame = ttk.Frame(asset_dialog)
+        steps_frame.pack(fill=BOTH, expand=True, padx=10, pady=5)
+
+        steps_list = ttk.Treeview(steps_frame, height=8, columns=('action',), show='headings', bootstyle="primary")
+        steps_list.heading('action', text='Action', anchor=CENTER)
+        steps_list.column('action', anchor=W)
+        steps_list.pack(fill=BOTH, expand=True)
+
+        # Populate existing steps if editing
+        if asset_to_edit and 'processing_steps' in asset_to_edit:
+            for step in asset_to_edit['processing_steps']:
+                action = step.get('action', 'N/A')
+                details = ', '.join([f"{k}='{v}'" for k, v in step.items() if k != 'action'])
+                display = f"{action}: {details}" if details else action
+                steps_list.insert('', END, values=(display,))
+
+        # Step management buttons
+        step_btn_frame = ttk.Frame(asset_dialog)
+        step_btn_frame.pack(fill=X, padx=10, pady=5)
+
+        def add_asset_step():
+            """Add a step to this asset's processing steps"""
+            self._show_step_dialog_for_asset(steps_list, asset_dialog)
+
+        def edit_asset_step():
+            """Edit selected step for this asset"""
+            selected = steps_list.selection()
+            if not selected:
+                self.gui.show_custom_info("No Selection", "Please select a step to edit.", parent=asset_dialog)
+                return
+            item = selected[0]
+            step_str = steps_list.item(item, 'values')[0]
+            step_dict = self._parse_step_string(step_str)
+            self._show_step_dialog_for_asset(steps_list, asset_dialog, step_to_edit=step_dict, item_id=item)
+
+        def remove_asset_step():
+            """Remove selected step from this asset"""
+            selected = steps_list.selection()
+            if not selected:
+                self.gui.show_custom_info("No Selection", "Please select a step to remove.", parent=asset_dialog)
+                return
+            if self.gui.show_custom_confirm("Confirm Remove", "Remove this step?", yes_text="Remove", style="danger", parent=asset_dialog):
+                for item in selected:
+                    steps_list.delete(item)
+
+        ttk.Button(step_btn_frame, text="+ Add Step", bootstyle="success-outline", command=add_asset_step).pack(side=LEFT, padx=2)
+        ttk.Button(step_btn_frame, text="Edit Step", bootstyle="info-outline", command=edit_asset_step).pack(side=LEFT, padx=2)
+        ttk.Button(step_btn_frame, text="Remove Step", bootstyle="danger-outline", command=remove_asset_step).pack(side=LEFT, padx=2)
+
+        # Save/Cancel buttons
+        button_frame = ttk.Frame(asset_dialog)
+        button_frame.pack(pady=10)
+
+        def save_asset():
+            """Save the asset pattern"""
+            pattern = pattern_entry.get().strip()
+            if not pattern:
+                self.gui.show_custom_info("Missing Pattern", "Please enter an asset pattern.", parent=asset_dialog)
+                return
+
+            # Collect processing steps
+            processing_steps = []
+            for step_item in steps_list.get_children():
+                step_str = steps_list.item(step_item, 'values')[0]
+                step_dict = self._parse_step_string(step_str)
+                processing_steps.append(step_dict)
+
+            # Store temporarily - will be saved with component data
+            asset_config = {
+                'pattern': pattern,
+                'processing_steps': processing_steps
+            }
+
+            # Update or add to the assets list
+            if item_id:
+                # Editing existing - update the values and temp storage
+                self.gui.editor_assets_list.item(item_id, values=(pattern,))
+                self.temp_asset_configs[item_id] = asset_config
+            else:
+                # Adding new
+                new_item_id = self.gui.editor_assets_list.insert('', END, values=(pattern,))
+                self.temp_asset_configs[new_item_id] = asset_config
+
+            asset_dialog.destroy()
+
+        ttk.Button(button_frame, text="Save Asset", command=save_asset, bootstyle="success").pack(side=LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=asset_dialog.destroy, bootstyle="secondary").pack(side=LEFT, padx=5)
+
+        self.gui.center_window(asset_dialog)
+
+    def _show_step_dialog_for_asset(self, steps_list, parent, step_to_edit=None, item_id=None):
+        """Show step dialog for adding/editing steps within an asset pattern"""
+        step_dialog = ttk.Toplevel(parent)
+        step_dialog.title("Add Step" if not step_to_edit else "Edit Step")
+        step_dialog.geometry("450x400")
+        step_dialog.transient(parent)
+        step_dialog.grab_set()
+
+        # Action dropdown
+        ttk.Label(step_dialog, text="Action:", font=('Segoe UI', 9, 'bold')).pack(pady=(10, 5), padx=10, anchor=W)
+        action_var = ttk.StringVar()
+        action_combo = ttk.Combobox(step_dialog, textvariable=action_var, width=40, state='readonly')
+        action_combo['values'] = ['unzip_to_root', 'copy_file', 'find_and_rename', 'delete_file', 'find_and_copy', 'unzip_subfolder_to_root']
+        action_combo.pack(pady=(0, 10), padx=10, fill=X)
+
+        if step_to_edit:
+            action_var.set(step_to_edit.get('action', ''))
+        else:
+            action_combo.current(0)
+
+        # Dynamic fields frame
+        fields_frame = ttk.Frame(step_dialog)
+        fields_frame.pack(fill=BOTH, expand=True, padx=10, pady=5)
+
+        field_widgets = {}
+
+        def update_fields(*args):
+            """Update fields based on selected action"""
+            for widget in fields_frame.winfo_children():
+                widget.destroy()
+            field_widgets.clear()
+
+            action = action_var.get()
+
+            if action in ['copy_file', 'find_and_copy', 'find_and_rename']:
+                ttk.Label(fields_frame, text="Target Path:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
+                target_entry = ttk.Entry(fields_frame, width=50)
+                target_entry.pack(pady=5, fill=X)
+                field_widgets['target_path'] = target_entry
+
+                if step_to_edit and 'target_path' in step_to_edit:
+                    target_entry.insert(0, step_to_edit['target_path'])
+
+            if action in ['find_and_rename', 'find_and_copy']:
+                ttk.Label(fields_frame, text="Source File Pattern:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
+                pattern_entry = ttk.Entry(fields_frame, width=50)
+                pattern_entry.pack(pady=5, fill=X)
+                field_widgets['source_file_pattern'] = pattern_entry
+
+                if step_to_edit and 'source_file_pattern' in step_to_edit:
+                    pattern_entry.insert(0, step_to_edit['source_file_pattern'])
+
+            if action == 'find_and_rename':
+                ttk.Label(fields_frame, text="Target Filename:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
+                filename_entry = ttk.Entry(fields_frame, width=50)
+                filename_entry.pack(pady=5, fill=X)
+                field_widgets['target_filename'] = filename_entry
+
+                if step_to_edit and 'target_filename' in step_to_edit:
+                    filename_entry.insert(0, step_to_edit['target_filename'])
+
+            if action == 'delete_file':
+                ttk.Label(fields_frame, text="Path to Delete:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
+                path_entry = ttk.Entry(fields_frame, width=50)
+                path_entry.pack(pady=5, fill=X)
+                field_widgets['path'] = path_entry
+
+                if step_to_edit and 'path' in step_to_edit:
+                    path_entry.insert(0, step_to_edit['path'])
+
+        action_combo.bind('<<ComboboxSelected>>', update_fields)
+        update_fields()  # Initialize
+
+        # Save/Cancel buttons
+        button_frame = ttk.Frame(step_dialog)
+        button_frame.pack(pady=10)
+
+        def save_step():
+            """Save the step"""
+            action = action_var.get()
+            if not action:
+                self.gui.show_custom_info("Missing Action", "Please select an action.", parent=step_dialog)
+                return
+
+            step_dict = {'action': action}
+
+            # Collect field values
+            for key, widget in field_widgets.items():
+                value = widget.get().strip()
+                if value:
+                    step_dict[key] = value
+
+            # Format for display
+            details = ', '.join([f"{k}='{v}'" for k, v in step_dict.items() if k != 'action'])
+            display_str = f"{action}: {details}" if details else action
+
+            # Update or add step
+            if item_id:
+                steps_list.item(item_id, values=(display_str,))
+            else:
+                steps_list.insert('', END, values=(display_str,))
+
+            step_dialog.destroy()
+
+        ttk.Button(button_frame, text="Save Step", command=save_step, bootstyle="success").pack(side=LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=step_dialog.destroy, bootstyle="secondary").pack(side=LEFT, padx=5)
+
+        self.gui.center_window(step_dialog)
+
+    def edit_asset_pattern(self):
+        """Edit the selected asset pattern"""
+        selected = self.gui.editor_assets_list.selection()
+        if not selected:
+            self.gui.show_custom_info("No Selection", "Please select an asset to edit.")
+            return
+
+        item_id = selected[0]
+        pattern = self.gui.editor_assets_list.item(item_id, 'values')[0]
+
+        # Retrieve the full asset config from current component data
+        comp_id = self.current_selection
+        if comp_id:
+            comp_data = self.gui.components_data.get(comp_id, {})
+            asset_patterns = comp_data.get('asset_patterns', [])
+
+            # Find the matching asset config
+            asset_to_edit = None
+            for asset_config in asset_patterns:
+                if asset_config.get('pattern') == pattern:
+                    asset_to_edit = asset_config
+                    break
+
+            if asset_to_edit:
+                self.add_asset_pattern(asset_to_edit=asset_to_edit, item_id=item_id)
+            else:
+                # Create a minimal config if not found
+                self.add_asset_pattern(asset_to_edit={'pattern': pattern, 'processing_steps': []}, item_id=item_id)
+
+    def remove_asset_pattern(self):
+        """Remove the selected asset pattern"""
+        selected = self.gui.editor_assets_list.selection()
+        if not selected:
+            self.gui.show_custom_info("No Selection", "Please select an asset to remove.")
+            return
+
+        if self.gui.show_custom_confirm("Confirm Remove", "Remove this asset pattern?", yes_text="Remove", style="danger"):
+            for item in selected:
+                self.gui.editor_assets_list.delete(item)

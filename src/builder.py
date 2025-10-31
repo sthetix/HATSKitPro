@@ -613,42 +613,70 @@ class PackBuilder:
                 if not comp_data:
                     log(f"❌ ERROR: Component '{comp_id}' not found in definitions. Skipping.")
                     continue
-                
-                # 1. Download asset
-                try:
-                    version_to_build = comp_data.get('asset_info', {}).get('version', 'N/A')
-                    log(f"\n▶ Processing: {comp_data['name']} ({version_to_build})")
-                    asset_path = self._download_asset(comp_data, Path(temp_dir), log)
-                    if not asset_path:
-                        log(f"  ❌ FAILED to download. Skipping component.")
-                        continue
-                except Exception as e:
-                    log(f"  ❌ FAILED during download: {e}. Skipping component.")
+
+                version_to_build = comp_data.get('asset_info', {}).get('version', 'N/A')
+                log(f"\n▶ Processing: {comp_data['name']} ({version_to_build})")
+
+                # Get asset configurations (handles both single and multiple assets)
+                asset_configs = self._get_asset_configs(comp_data)
+
+                if not asset_configs:
+                    log(f"  ❌ No asset patterns defined. Skipping component.")
                     continue
 
-                # 2. Process asset
-                try:
-                    processed_files = self._process_asset(asset_path, comp_data, staging_dir, log)
-                    if processed_files is None: # Error occurred
-                        log(f"  ❌ FAILED during processing. Skipping component.")
-                        continue
-                    manifest['components'][comp_id] = {
-                        "name": comp_data['name'],
-                        "version": version_to_build,
-                        "category": comp_data.get('category', 'Unknown'),
-                        "files": [str(p.relative_to(staging_dir)).replace('\\', '/') for p in processed_files]
-                    }
+                all_component_files = []
+                component_failed = False
 
-                    # 3. If this is Atmosphere, fetch firmware support info
-                    if comp_id == "atmosphere":
-                        log(f"\n▶ Scanning Atmosphere release for firmware support info...")
-                        firmware_ver, _ = self.get_atmosphere_firmware_info(version_to_build, log)
-                        manifest['supported_firmware'] = firmware_ver
-                        # Note: We keep using the computed content_hash from all components
+                # Process each asset (may be one or multiple)
+                for idx, asset_config in enumerate(asset_configs, 1):
+                    asset_pattern = asset_config.get('pattern')
+                    asset_processing_steps = asset_config.get('processing_steps', [])
 
-                except Exception as e:
-                    log(f"  ❌ FAILED during processing: {e}. Skipping component.")
+                    if len(asset_configs) > 1:
+                        log(f"  → Asset {idx}/{len(asset_configs)}: {asset_pattern}")
+
+                    # 1. Download asset
+                    try:
+                        asset_path = self._download_asset(comp_data, Path(temp_dir), log, pattern=asset_pattern)
+                        if not asset_path:
+                            log(f"  ❌ FAILED to download '{asset_pattern}'. Skipping this asset.")
+                            component_failed = True
+                            break
+                    except Exception as e:
+                        log(f"  ❌ FAILED during download of '{asset_pattern}': {e}")
+                        component_failed = True
+                        break
+
+                    # 2. Process asset
+                    try:
+                        processed_files = self._process_asset(asset_path, comp_data, staging_dir, log, processing_steps=asset_processing_steps)
+                        if processed_files is None:
+                            log(f"  ❌ FAILED during processing of '{asset_pattern}'.")
+                            component_failed = True
+                            break
+                        all_component_files.extend(processed_files)
+                    except Exception as e:
+                        log(f"  ❌ FAILED during processing of '{asset_pattern}': {e}")
+                        component_failed = True
+                        break
+
+                if component_failed:
+                    log(f"  ❌ Component '{comp_data['name']}' failed. Skipping.")
                     continue
+
+                # Add to manifest
+                manifest['components'][comp_id] = {
+                    "name": comp_data['name'],
+                    "version": version_to_build,
+                    "category": comp_data.get('category', 'Unknown'),
+                    "files": [str(p.relative_to(staging_dir)).replace('\\', '/') for p in all_component_files]
+                }
+
+                # 3. If this is Atmosphere, fetch firmware support info
+                if comp_id == "atmosphere":
+                    log(f"\n▶ Scanning Atmosphere release for firmware support info...")
+                    firmware_ver, _ = self.get_atmosphere_firmware_info(version_to_build, log)
+                    manifest['supported_firmware'] = firmware_ver
 
                 current_step += 1
                 update_progress((current_step / total_steps) * 100)
@@ -769,12 +797,41 @@ class PackBuilder:
             self.gui.show_custom_info("Build Complete", f"HATS Pack successfully built!\n\nSaved to:\n{final_output_file}\n\nThe Manager tab is now ready for installation.", parent=window, height=320)
         ])
 
-    def _download_asset(self, comp_data, temp_dir, log):
-        """Downloads the asset for a component."""
+    def _get_asset_configs(self, comp_data):
+        """
+        Get list of asset configurations from component data.
+        Handles both old (single asset) and new (multiple assets) formats.
+
+        Returns: list of dict with 'pattern' and 'processing_steps'
+        """
+        # New format: multiple assets
+        if 'asset_patterns' in comp_data:
+            return comp_data['asset_patterns']
+
+        # Old format: single asset (convert to list for uniform processing)
+        elif 'asset_pattern' in comp_data:
+            return [{
+                'pattern': comp_data['asset_pattern'],
+                'processing_steps': comp_data.get('processing_steps', [])
+            }]
+
+        return []
+
+    def _download_asset(self, comp_data, temp_dir, log, pattern=None):
+        """
+        Downloads the asset for a component.
+
+        Args:
+            comp_data: Component configuration
+            temp_dir: Temporary directory for downloads
+            log: Logging function
+            pattern: Specific asset pattern to download (for multi-asset components)
+        """
         source_type = comp_data.get('source_type')
         if source_type == 'github_release':
             repo = comp_data.get('repo')
-            pattern = comp_data.get('asset_pattern')
+            if not pattern:
+                pattern = comp_data.get('asset_pattern')
             if not repo or not pattern:
                 log("  ❌ Invalid component: missing 'repo' or 'asset_pattern'.")
                 return None
@@ -844,9 +901,21 @@ class PackBuilder:
             log(f"  ❌ Unsupported source_type: '{source_type}'")
             return None
 
-    def _process_asset(self, asset_path, comp_data, staging_dir, log):
-        """Processes a downloaded asset based on component's processing_steps."""
-        steps = comp_data.get('processing_steps', [])
+    def _process_asset(self, asset_path, comp_data, staging_dir, log, processing_steps=None):
+        """
+        Processes a downloaded asset based on component's processing_steps.
+
+        Args:
+            asset_path: Path to downloaded asset
+            comp_data: Component configuration
+            staging_dir: Staging directory for extraction
+            log: Logging function
+            processing_steps: Specific processing steps (for multi-asset components)
+        """
+        if processing_steps is None:
+            steps = comp_data.get('processing_steps', [])
+        else:
+            steps = processing_steps
         all_processed_files = []
 
         if not steps: # If no steps, assume it's a simple zip to root

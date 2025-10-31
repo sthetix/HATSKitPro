@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v1.1.0 - Main GUI Skeleton
+HATSKit Pro v1.2.0 - Main GUI Skeleton
 A unified tool for building and managing HATS packs
 """
 
@@ -19,7 +19,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
@@ -480,10 +480,36 @@ class HATSKitProGUI:
         self.editor_repo = ttk.Entry(form, width=40)
         self.editor_repo.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
         
+        # --- Single Asset Pattern (backward compatible) ---
         self.editor_pattern_label = ttk.Label(form, text="Asset Pattern:", font=('Segoe UI', 9, 'bold'))
         self.editor_pattern_label.grid(row=8, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_pattern = ttk.Entry(form, width=40)
         self.editor_pattern.grid(row=8, column=1, sticky=EW, pady=5, padx=(0, 10))
+
+        # --- Multi-Asset Patterns Section ---
+        self.editor_assets_label = ttk.Label(form, text="Asset Patterns:", font=('Segoe UI', 9, 'bold'))
+        self.editor_assets_frame = ttk.Frame(form)
+
+        # Container with list on left and buttons on right
+        assets_container = ttk.Frame(self.editor_assets_frame)
+        assets_container.pack(fill=BOTH, expand=True)
+
+        # Assets list (shows pattern names) - left side
+        assets_list_frame = ttk.Frame(assets_container)
+        assets_list_frame.pack(side=LEFT, fill=BOTH, expand=True)
+
+        self.editor_assets_list = ttk.Treeview(assets_list_frame, height=4, columns=('pattern',), show='headings', bootstyle="primary")
+        self.editor_assets_list.heading('pattern', text='Asset Pattern', anchor=W)
+        self.editor_assets_list.column('pattern', anchor=W)
+        self.editor_assets_list.pack(side=LEFT, fill=BOTH, expand=True)
+
+        assets_scroll = ttk.Scrollbar(assets_list_frame, orient=VERTICAL, command=self.editor_assets_list.yview, bootstyle="primary-round")
+        self.editor_assets_list.configure(yscrollcommand=assets_scroll.set)
+        assets_scroll.pack(side=RIGHT, fill=Y)
+
+        # Asset management buttons - right side, stacked vertically
+        assets_btn_frame = ttk.Frame(assets_container)
+        assets_btn_frame.pack(side=RIGHT, fill=Y, padx=(5, 0))
 
         self.editor_url_label = ttk.Label(form, text="Direct URL:", font=('Segoe UI', 9, 'bold'))
         self.editor_url = ttk.Entry(form, width=40)
@@ -493,8 +519,11 @@ class HATSKitProGUI:
             if source_type == 'github_release':
                 self.editor_repo_label.grid()
                 self.editor_repo.grid()
-                self.editor_pattern_label.grid()
-                self.editor_pattern.grid()
+                # Show multi-asset UI by default for github_release
+                self.editor_pattern_label.grid_remove()
+                self.editor_pattern.grid_remove()
+                self.editor_assets_label.grid(row=8, column=0, sticky=NW, pady=5, padx=(0, 10))
+                self.editor_assets_frame.grid(row=8, column=1, sticky=EW, pady=5, padx=(0, 10))
                 self.editor_url_label.grid_remove()
                 self.editor_url.grid_remove()
             elif source_type == 'direct_url':
@@ -502,16 +531,18 @@ class HATSKitProGUI:
                 self.editor_repo.grid_remove()
                 self.editor_pattern_label.grid_remove()
                 self.editor_pattern.grid_remove()
+                self.editor_assets_label.grid_remove()
+                self.editor_assets_frame.grid_remove()
                 self.editor_url_label.grid(row=7, column=0, sticky=W, pady=5, padx=(0, 10))
                 self.editor_url.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
 
         self.editor_source_type.bind('<<ComboboxSelected>>', update_source_fields)
 
-        # Processing steps
+        # Processing steps (legacy - will be per-asset now)
         ttk.Separator(form, orient=HORIZONTAL).grid(row=9, column=0, columnspan=2, sticky=EW, pady=10)
         steps_header = ttk.Frame(form)
         steps_header.grid(row=10, column=0, columnspan=2, sticky=EW, pady=5)
-        ttk.Label(steps_header, text="Processing Steps", font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
+        ttk.Label(steps_header, text="Processing Steps (Legacy - use per-asset steps)", font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
 
         # Steps list
         self.editor_steps_list = ttk.Treeview(form, height=5, columns=('action',), show='headings', bootstyle="primary")
