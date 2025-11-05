@@ -78,7 +78,7 @@ class PackManager:
                     elif text == "Download Latest":
                         # Check parent to determine if HATS or Firmware
                         parent = child.master
-                        while parent and not isinstance(parent, ttk.LabelFrame):
+                        while parent and not isinstance(parent, ttk.Labelframe):
                             parent = parent.master
                         if parent and "Firmware" in parent.cget('text'):
                             child.config(command=self.download_latest_firmware)
@@ -87,7 +87,7 @@ class PackManager:
                     elif text == "Refresh":
                         # Check parent to determine if HATS or Firmware
                         parent = child.master
-                        while parent and not isinstance(parent, ttk.LabelFrame):
+                        while parent and not isinstance(parent, ttk.Labelframe):
                             parent = parent.master
                         if parent and "Firmware" in parent.cget('text'):
                             child.config(command=self.check_latest_firmware)
@@ -96,7 +96,7 @@ class PackManager:
                     elif text == "View on GitHub":
                         # Check parent to determine if HATS or Firmware
                         parent = child.master
-                        while parent and not isinstance(parent, ttk.LabelFrame):
+                        while parent and not isinstance(parent, ttk.Labelframe):
                             parent = parent.master
                         if parent and "Firmware" in parent.cget('text'):
                             child.config(command=self.open_github_firmware)

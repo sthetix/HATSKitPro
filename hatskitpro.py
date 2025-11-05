@@ -275,7 +275,7 @@ class HATSKitProGUI:
     def create_builder_tab_ui(self):
         """Create Pack Builder tab UI only (logic in builder.py)"""
         # Info panel
-        info_frame = ttk.LabelFrame(self.builder_tab, text="Information", padding="10")
+        info_frame = ttk.Labelframe(self.builder_tab, text="Information", padding="10")
         info_frame.pack(fill=X, padx=10, pady=5)
         
         ttk.Label(info_frame, text="Select components to include in your HATS pack. Use Ctrl+Click or Shift+Click to select multiple.",
@@ -286,7 +286,7 @@ class HATSKitProGUI:
         content_frame.pack(fill=BOTH, expand=True, padx=10, pady=5)
         
         # LEFT PANEL
-        left_frame = ttk.LabelFrame(content_frame, text="Available Components", padding="10")
+        left_frame = ttk.Labelframe(content_frame, text="Available Components", padding="10")
         left_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5))
         
         # Search box
@@ -336,7 +336,7 @@ class HATSKitProGUI:
         ttk.Button(left_buttons, text="Fetch Versions", bootstyle="info").pack(side=LEFT, padx=2)
         
         # RIGHT PANEL
-        right_frame = ttk.LabelFrame(content_frame, text="Selected Components", padding="10")
+        right_frame = ttk.Labelframe(content_frame, text="Selected Components", padding="10")
         right_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=(5, 0))
         
         self.selection_label = ttk.Label(right_frame, text="Selected: 0 components",
@@ -384,7 +384,7 @@ class HATSKitProGUI:
         
     def create_editor_tab_ui(self):
         """Create Component Editor tab UI only (logic in editor.py)"""
-        left_frame = ttk.LabelFrame(self.editor_tab, text="Components", padding=10)
+        left_frame = ttk.Labelframe(self.editor_tab, text="Components", padding=10)
         left_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(10, 5), pady=10)
         
         # Search box
@@ -419,7 +419,7 @@ class HATSKitProGUI:
         ttk.Button(list_button_frame, text="Delete", bootstyle="danger").pack(side=LEFT, padx=2)
         
         # RIGHT PANEL
-        right_frame = ttk.LabelFrame(self.editor_tab, text="Component Details", padding=10)
+        right_frame = ttk.Labelframe(self.editor_tab, text="Component Details", padding=10)
         right_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=(5, 10), pady=10)
         
         # Save button at bottom
@@ -559,7 +559,7 @@ class HATSKitProGUI:
     def create_manager_tab_ui(self):
         """Create Manager tab UI only (logic in manager.py)"""
         # SD Card selection
-        sd_frame = ttk.LabelFrame(self.manager_tab, text="SD Card Location", padding="10")
+        sd_frame = ttk.Labelframe(self.manager_tab, text="SD Card Location", padding="10")
         sd_frame.pack(fill=X, padx=10, pady=5)
 
         ttk.Entry(sd_frame, textvariable=self.sd_path, width=45).pack(side=LEFT, padx=5, fill=X, expand=True)
@@ -567,7 +567,7 @@ class HATSKitProGUI:
                    command=self.browse_sd_card_manager).pack(side=LEFT, padx=5)
 
         # Download Official Pack Section
-        download_frame = ttk.LabelFrame(self.manager_tab, text="Download Official HATS Pack", padding="10")
+        download_frame = ttk.Labelframe(self.manager_tab, text="Download Official HATS Pack", padding="10")
         download_frame.pack(fill=X, padx=10, pady=(10, 5))
 
         # Top row: Release info
@@ -602,7 +602,7 @@ class HATSKitProGUI:
         self.download_progress_frame.pack_forget()
 
         # Download Firmware Pack Section
-        firmware_frame = ttk.LabelFrame(self.manager_tab, text="Download Firmware Pack", padding="10")
+        firmware_frame = ttk.Labelframe(self.manager_tab, text="Download Firmware Pack", padding="10")
         firmware_frame.pack(fill=X, padx=10, pady=(10, 5))
 
         # Top row: Firmware release info
@@ -637,7 +637,7 @@ class HATSKitProGUI:
         self.firmware_progress_frame.pack_forget()
 
         # Pack Installer
-        installer_frame = ttk.LabelFrame(self.manager_tab, text="Pack Installer", padding="10")
+        installer_frame = ttk.Labelframe(self.manager_tab, text="Pack Installer", padding="10")
         installer_frame.pack(fill=X, padx=10, pady=(10, 5))
 
         self.pack_path = ttk.StringVar()
@@ -662,7 +662,7 @@ class HATSKitProGUI:
         self.manager_trash_info.pack(side=LEFT, padx=10)
         
         # Components frame
-        self.manager_components_frame = ttk.LabelFrame(self.manager_tab, text="Installed Components", padding="10")
+        self.manager_components_frame = ttk.Labelframe(self.manager_tab, text="Installed Components", padding="10")
         self.manager_components_frame.pack(fill=BOTH, expand=True, padx=10, pady=5)
         
         # Treeview
@@ -715,7 +715,7 @@ class HATSKitProGUI:
     def create_postproc_tab_ui(self):
         """Create System Config tab UI for network configuration and system settings"""
         # Info panel
-        info_frame = ttk.LabelFrame(self.postproc_tab, text="Information", padding="10")
+        info_frame = ttk.Labelframe(self.postproc_tab, text="Information", padding="10")
         info_frame.pack(fill=X, padx=10, pady=5)
 
         ttk.Label(info_frame,
@@ -724,7 +724,7 @@ class HATSKitProGUI:
                   font=('Segoe UI', 9)).pack()
 
         # SD Card path selection - Smart status display
-        sd_frame = ttk.LabelFrame(self.postproc_tab, text="SD Card Location", padding="10")
+        sd_frame = ttk.Labelframe(self.postproc_tab, text="SD Card Location", padding="10")
         sd_frame.pack(fill=X, padx=10, pady=10)
 
         # Status display that shows current path or prompts user to select
@@ -746,14 +746,14 @@ class HATSKitProGUI:
         config_container.grid_columnconfigure(1, weight=2)  # Right column takes 40% width
 
         # LEFT COLUMN: Network Modes
-        left_column = ttk.LabelFrame(config_container, text="Network Modes", padding="15")
+        left_column = ttk.Labelframe(config_container, text="Network Modes", padding="15")
         left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
         # Network mode radio buttons
         self.network_mode_var = ttk.StringVar(value='default')
 
         # Mode 1: Default (Both Offline) - Safe
-        self.mode1_frame = ttk.LabelFrame(left_column, text="Default Mode (Safest)", padding="10", bootstyle="secondary")
+        self.mode1_frame = ttk.Labelframe(left_column, text="Default Mode (Safest)", padding="10", bootstyle="secondary")
         self.mode1_frame.pack(fill=X, pady=5)
 
         self.network_radio_default = ttk.Radiobutton(self.mode1_frame,
@@ -770,7 +770,7 @@ class HATSKitProGUI:
         self.mode1_label.pack(anchor=W, padx=(20, 0))
 
         # Mode 2: sysMMC Online
-        self.mode2_frame = ttk.LabelFrame(left_column, text="sysMMC CFW Online", padding="10", bootstyle="secondary")
+        self.mode2_frame = ttk.Labelframe(left_column, text="sysMMC CFW Online", padding="10", bootstyle="secondary")
         self.mode2_frame.pack(fill=X, pady=5)
 
         self.network_radio_sysmmc = ttk.Radiobutton(self.mode2_frame,
@@ -787,7 +787,7 @@ class HATSKitProGUI:
         self.mode2_label.pack(anchor=W, padx=(20, 0))
 
         # Mode 3: emuMMC Online
-        self.mode3_frame = ttk.LabelFrame(left_column, text="emuMMC Online", padding="10", bootstyle="secondary")
+        self.mode3_frame = ttk.Labelframe(left_column, text="emuMMC Online", padding="10", bootstyle="secondary")
         self.mode3_frame.pack(fill=X, pady=5)
 
         self.network_radio_emummc = ttk.Radiobutton(self.mode3_frame,
@@ -804,7 +804,7 @@ class HATSKitProGUI:
         self.mode3_label.pack(anchor=W, padx=(20, 0))
 
         # Mode 4: Both Online - Dangerous
-        self.mode4_frame = ttk.LabelFrame(left_column, text="Both Online (Maximum Risk)", padding="10", bootstyle="secondary")
+        self.mode4_frame = ttk.Labelframe(left_column, text="Both Online (Maximum Risk)", padding="10", bootstyle="secondary")
         self.mode4_frame.pack(fill=X, pady=5)
 
         self.network_radio_both = ttk.Radiobutton(self.mode4_frame,
@@ -830,7 +830,7 @@ class HATSKitProGUI:
         right_column.grid_columnconfigure(0, weight=1)
 
         # TOP RIGHT: Hekate Boot Menu Configuration
-        hekate_frame = ttk.LabelFrame(right_column, text="Hekate Boot Menu", padding="15")
+        hekate_frame = ttk.Labelframe(right_column, text="Hekate Boot Menu", padding="15")
         hekate_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
 
         self.hekate_info_label = ttk.Label(hekate_frame,
@@ -875,7 +875,7 @@ class HATSKitProGUI:
         self.hekate_warning_label.pack(anchor=W, pady=(5, 0))
 
         # BOTTOM RIGHT: USB 3.0 Settings
-        usb_frame = ttk.LabelFrame(right_column, text="USB 3.0 Settings", padding="15")
+        usb_frame = ttk.Labelframe(right_column, text="USB 3.0 Settings", padding="15")
         usb_frame.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
 
         self.usb_info_label = ttk.Label(usb_frame,
@@ -1349,7 +1349,7 @@ class HATSKitProGUI:
                   wraplength=500).pack(pady=(0, 20))
 
         # Chunk size setting
-        chunk_frame = ttk.LabelFrame(info_frame, text="Download Chunk Size", padding=15)
+        chunk_frame = ttk.Labelframe(info_frame, text="Download Chunk Size", padding=15)
         chunk_frame.pack(fill=X, pady=(0, 15))
 
         ttk.Label(chunk_frame, text="Larger chunks = faster downloads but less frequent progress updates.\n"
