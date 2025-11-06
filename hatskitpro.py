@@ -19,7 +19,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
@@ -365,7 +365,10 @@ class HATSKitProGUI:
         self.builder_preview.column('name', width=180)
         self.builder_preview.column('version', width=80)
         self.builder_preview.column('category', width=100)
-        
+
+        # Configure tag for updated components (orange/warning color)
+        self.builder_preview.tag_configure('updated', foreground='#FFA500')
+
         preview_scroll.config(command=self.builder_preview.yview)
         self.builder_preview.pack(fill=BOTH, expand=True)
         
@@ -431,15 +434,22 @@ class HATSKitProGUI:
         form_canvas = ttk.Canvas(right_frame, highlightthickness=0)
         form_scroll = ttk.Scrollbar(right_frame, orient=VERTICAL, command=form_canvas.yview, bootstyle="primary-round")
         self.editor_form = ttk.Frame(form_canvas, padding=(0,0,15,0))
-        
-        self.editor_form.bind(
-            "<Configure>",
-            lambda e: form_canvas.configure(scrollregion=form_canvas.bbox("all"))
-        )
-        
-        form_canvas.create_window((0, 0), window=self.editor_form, anchor="nw")
+
+        # Configure canvas window to fill width
+        def on_frame_configure(event):
+            form_canvas.configure(scrollregion=form_canvas.bbox("all"))
+
+        def on_canvas_configure(event):
+            # Make the frame fill the canvas width
+            canvas_width = event.width
+            form_canvas.itemconfig(canvas_window, width=canvas_width)
+
+        self.editor_form.bind("<Configure>", on_frame_configure)
+
+        canvas_window = form_canvas.create_window((0, 0), window=self.editor_form, anchor="nw")
+        form_canvas.bind("<Configure>", on_canvas_configure)
         form_canvas.configure(yscrollcommand=form_scroll.set)
-        
+
         form_canvas.pack(side=LEFT, fill=BOTH, expand=True)
         form_scroll.pack(side=RIGHT, fill=Y)
         
@@ -538,11 +548,13 @@ class HATSKitProGUI:
 
         self.editor_source_type.bind('<<ComboboxSelected>>', update_source_fields)
 
-        # Processing steps (legacy - will be per-asset now)
+        # Processing steps for selected asset pattern
         ttk.Separator(form, orient=HORIZONTAL).grid(row=9, column=0, columnspan=2, sticky=EW, pady=10)
         steps_header = ttk.Frame(form)
         steps_header.grid(row=10, column=0, columnspan=2, sticky=EW, pady=5)
-        ttk.Label(steps_header, text="Processing Steps (Legacy - use per-asset steps)", font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
+        ttk.Label(steps_header, text="Processing Steps for Selected Asset", font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
+        self.editor_steps_info = ttk.Label(steps_header, text="(no asset selected)", font=('Segoe UI', 9), foreground='gray')
+        self.editor_steps_info.pack(side=LEFT, padx=(10, 0))
 
         # Steps list
         self.editor_steps_list = ttk.Treeview(form, height=5, columns=('action',), show='headings', bootstyle="primary")
@@ -550,10 +562,13 @@ class HATSKitProGUI:
         self.editor_steps_list.column('action', anchor=W)
         self.editor_steps_list.grid(row=11, column=0, columnspan=2, sticky=EW, pady=5, padx=(0, 10))
 
-        # Add Step button
+        # Step management buttons
         add_step_frame = ttk.Frame(form)
         add_step_frame.grid(row=12, column=0, columnspan=2, pady=(5, 0), sticky=W)
-        
+        ttk.Button(add_step_frame, text="Add Step", bootstyle="success-outline", command=lambda: None).pack(side=LEFT, padx=2)
+        ttk.Button(add_step_frame, text="Edit Step", bootstyle="info-outline", command=lambda: None).pack(side=LEFT, padx=2)
+        ttk.Button(add_step_frame, text="Remove Step", bootstyle="danger-outline", command=lambda: None).pack(side=LEFT, padx=2)
+
         form.columnconfigure(1, weight=1)
     
     def create_manager_tab_ui(self):
@@ -840,9 +855,18 @@ class HATSKitProGUI:
         self.hekate_info_label.pack(anchor=W, pady=(0, 5))
 
         # Create variables for each boot option
+        self.hekate_ofw_var = ttk.BooleanVar(value=True)
         self.hekate_semistock_var = ttk.BooleanVar(value=True)
         self.hekate_sysmmc_var = ttk.BooleanVar(value=True)
         self.hekate_emummc_var = ttk.BooleanVar(value=True)
+
+        # Stock OFW option
+        self.hekate_ofw_toggle = ttk.Checkbutton(hekate_frame,
+                                                 text="100% Stock OFW",
+                                                 variable=self.hekate_ofw_var,
+                                                 bootstyle="secondary-round-toggle",
+                                                 state=DISABLED)
+        self.hekate_ofw_toggle.pack(anchor=W, pady=2)
 
         # Semi-Stock option
         self.hekate_semistock_toggle = ttk.Checkbutton(hekate_frame,
@@ -1143,6 +1167,7 @@ class HATSKitProGUI:
 
         # Get current UI values
         network_mode = self.network_mode_var.get()
+        enable_ofw = self.hekate_ofw_var.get()
         enable_semistock = self.hekate_semistock_var.get()
         enable_sysmmc = self.hekate_sysmmc_var.get()
         enable_emummc = self.hekate_emummc_var.get()
@@ -1173,6 +1198,7 @@ class HATSKitProGUI:
         self.post_processor.save_all_settings(
             sd_path,
             network_mode,
+            enable_ofw,
             enable_semistock,
             enable_sysmmc,
             enable_emummc,

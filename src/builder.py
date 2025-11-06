@@ -256,7 +256,8 @@ class PackBuilder:
             comp = self.gui.components_data.get(comp_id, {})
 
             # Priority: Use fetched version from asset_info if available, otherwise from last_build.json
-            version = comp.get('asset_info', {}).get('version', 'N/A')
+            fetched_version = comp.get('asset_info', {}).get('version', 'N/A')
+            version = fetched_version
 
             # If no fetched version, try last build version
             if version == 'N/A' and comp_id in last_build_components:
@@ -269,10 +270,26 @@ class PackBuilder:
                     version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
                     if version_match:
                         version = version_match.group(1)
+                        fetched_version = version  # Update fetched_version for comparison
 
-            self.gui.builder_preview.insert('', END, values=(comp.get('name', comp_id),
-                                                              version,
-                                                              comp.get('category', 'Unknown')))
+            # Determine component name and check if it's new/updated
+            display_name = comp.get('name', comp_id)
+            is_updated = False
+
+            # Check if this component has a newer version than last build
+            if comp_id in last_build_components and fetched_version != 'N/A':
+                last_build_version = last_build_components[comp_id].get('version', 'N/A')
+                # If versions differ, mark as updated
+                if last_build_version != 'N/A' and fetched_version != last_build_version:
+                    display_name = display_name + " *"
+                    is_updated = True
+
+            # Insert with appropriate tag
+            item_id = self.gui.builder_preview.insert('', END, values=(display_name,
+                                                                        version,
+                                                                        comp.get('category', 'Unknown')))
+            if is_updated:
+                self.gui.builder_preview.item(item_id, tags=('updated',))
 
         # Update label
         count = len(selected)

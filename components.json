@@ -17,6 +17,27 @@
     "repo": "meganukebmp/Switch_90DNS_tester",
     "source_type": "github_release"
   },
+  "Lockpick_RCM_Pro": {
+    "asset_info": {
+      "version": "1.9.15"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "Lockpick_RCM.bin",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/bootloader/payloads"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "Console keys and prodinfo dumper",
+    "name": "Lockpick_RCM_Pro",
+    "repo": "sthetix/Lockpick_RCM_Pro",
+    "source_type": "github_release"
+  },
   "aio_updater": {
     "asset_info": {
       "version": "2.23.2"
@@ -31,24 +52,6 @@
       }
     ],
     "repo": "HamletDuFromage/aio-switch-updater",
-    "source_type": "github_release"
-  },
-  "appstore": {
-    "asset_info": {
-      "version": "v2.3.2"
-    },
-    "asset_pattern": "appstore.nro",
-    "category": "Homebrew Apps",
-    "default": false,
-    "description": "Download new homebrew apps from your Switch.",
-    "name": "Homebrew Appstore",
-    "processing_steps": [
-      {
-        "action": "copy_file",
-        "target_path": "/switch/appstore/"
-      }
-    ],
-    "repo": "fortheusers/hb-appstore",
     "source_type": "github_release"
   },
   "atmosphere": {
@@ -87,7 +90,7 @@
   },
   "dbi_ru": {
     "asset_info": {
-      "version": "821ru"
+      "version": "831ru"
     },
     "asset_pattern": "DBI.nro",
     "category": "Homebrew Apps",
@@ -122,7 +125,7 @@
   },
   "edizon_overlay": {
     "asset_info": {
-      "version": "v1.0.10"
+      "version": "v1.0.11"
     },
     "asset_pattern": "ovlEdiZon.ovl",
     "category": "Tesla Overlays",
@@ -155,24 +158,6 @@
     "repo": "tomvita/EdiZon-SE",
     "source_type": "github_release"
   },
-  "ftpd": {
-    "asset_info": {
-      "version": "v3.2.1"
-    },
-    "asset_pattern": "ftpd.nro",
-    "category": "Homebrew Apps",
-    "default": false,
-    "description": "FTP server for your Switch.",
-    "name": "FTPD Pro",
-    "processing_steps": [
-      {
-        "action": "copy_file",
-        "target_path": "/switch/ftpd/"
-      }
-    ],
-    "repo": "mtheall/ftpd",
-    "source_type": "github_release"
-  },
   "goldleaf": {
     "asset_info": {
       "version": "1.1.1"
@@ -195,22 +180,26 @@
     "asset_info": {
       "version": "v6.3.1"
     },
-    "asset_pattern": "hekate_ctcaer_*.zip",
-    "category": "Essential",
-    "description": "Bootloader and tools. Essential.",
-    "name": "Hekate + Nyx",
-    "processing_steps": [
+    "asset_patterns": [
       {
-        "action": "unzip_to_root"
-      },
-      {
-        "action": "find_and_rename",
-        "source_file_pattern": "hekate_ctcaer_*.bin",
-        "target_filename": "payload.bin",
-        "target_path": "/"
+        "pattern": "hekate-ext_ctcaer*.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          },
+          {
+            "action": "find_and_rename",
+            "source_file_pattern": "hekate_ctcaer_*.bin",
+            "target_filename": "payload.bin",
+            "target_path": "/"
+          }
+        ]
       }
     ],
-    "repo": "CTCaer/hekate",
+    "category": "Essential",
+    "description": "Bootloader and tools. Essential.",
+    "name": "Hekate-ext",
+    "repo": "sthetix/hekate-ext",
     "source_type": "github_release"
   },
   "jksv": {
@@ -250,24 +239,6 @@
     "repo": "NexlifyHub/AccountSync",
     "source_type": "github_release"
   },
-  "lockpick_rcm": {
-    "asset_info": {
-      "version": "1.9.15"
-    },
-    "asset_pattern": "Lockpick_RCM.bin",
-    "category": "Payloads",
-    "default": false,
-    "description": "Tool to dump your console's unique keys.",
-    "name": "Lockpick_RCM",
-    "processing_steps": [
-      {
-        "action": "copy_file",
-        "target_path": "/bootloader/payloads/"
-      }
-    ],
-    "repo": "THZoria/Lockpick_RCMaster",
-    "source_type": "github_release"
-  },
   "mission_control": {
     "asset_info": {
       "version": "v0.13.6"
@@ -300,24 +271,6 @@
       }
     ],
     "repo": "ppkantorski/nx-ovlloader",
-    "source_type": "github_release"
-  },
-  "nx_shell": {
-    "asset_info": {
-      "version": "4.01"
-    },
-    "asset_pattern": "NX-Shell.nro",
-    "category": "Homebrew Apps",
-    "default": false,
-    "description": "A multipurpose file manager.",
-    "name": "NX-Shell",
-    "processing_steps": [
-      {
-        "action": "copy_file",
-        "target_path": "/switch/"
-      }
-    ],
-    "repo": "joel16/NX-Shell",
     "source_type": "github_release"
   },
   "prodinfo_gen": {
@@ -426,7 +379,7 @@
   },
   "status_monitor_overlay": {
     "asset_info": {
-      "version": "1.2.2"
+      "version": "1.3.1"
     },
     "asset_pattern": "Status-Monitor-Overlay.zip",
     "category": "Tesla Overlays",
@@ -443,23 +396,23 @@
   },
   "sys_clk": {
     "asset_info": {
-      "version": "2.0.1"
+      "version": "2.0.1+r15"
     },
-    "asset_pattern": "sys-clk-*.zip",
-    "category": "Tesla Overlays",
-    "default": false,
-    "description": "Sysmodule for overclocking.",
-    "name": "sys-clk",
-    "processing_steps": [
+    "asset_patterns": [
       {
-        "action": "unzip_to_root"
-      },
-      {
-        "action": "delete_file",
-        "path": "/readme.md"
+        "pattern": "sys-clk-overlay.ovl",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/.overlays"
+          }
+        ]
       }
     ],
-    "repo": "retronx-team/sys-clk",
+    "category": "Tesla Overlays",
+    "description": "Sysmodule for overclocking.",
+    "name": "sys-clk",
+    "repo": "ppkantorski/sys-clk",
     "source_type": "github_release"
   },
   "sys_patch": {
@@ -481,7 +434,7 @@
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.3.9"
+      "version": "v1.4.1"
     },
     "asset_pattern": "ovlSysmodules.ovl",
     "category": "Tesla Overlays",
@@ -569,7 +522,7 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.1.3"
+      "version": "v2.1.5"
     },
     "asset_pattern": "ovlmenu.ovl",
     "category": "Tesla Overlays",

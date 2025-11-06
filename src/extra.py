@@ -265,7 +265,7 @@ class PostProcessor:
             print(f"Error reading {path}: {e}")
             return None
 
-    def save_all_settings(self, sd_path, network_mode, enable_semistock, enable_sysmmc, enable_emummc, enable_usb30):
+    def save_all_settings(self, sd_path, network_mode, enable_ofw, enable_semistock, enable_sysmmc, enable_emummc, enable_usb30):
         """Save all settings at once: network mode, hekate config, and USB 3.0"""
         if not sd_path:
             self.gui.show_custom_info("Error", "Please set SD card path first", width=400, height=180)
@@ -291,7 +291,7 @@ class PostProcessor:
             all_success = False
 
         # 2. Apply Hekate Boot Menu Config
-        if not (enable_semistock or enable_sysmmc or enable_emummc):
+        if not (enable_ofw or enable_semistock or enable_sysmmc or enable_emummc):
             results.append("✗ Hekate Config: At least one option must be enabled")
             all_success = False
         else:
@@ -300,7 +300,7 @@ class PostProcessor:
                 content = self.read_file(hekate_path)
                 if content:
                     entries = self.parse_hekate_ini(content)
-                    new_content = self.build_hekate_ini(entries, enable_semistock, enable_sysmmc, enable_emummc)
+                    new_content = self.build_hekate_ini(entries, enable_ofw, enable_semistock, enable_sysmmc, enable_emummc)
                     if self.write_file(hekate_path, new_content):
                         results.append("✓ Hekate Boot Menu: Updated")
                     else:
@@ -767,6 +767,7 @@ class PostProcessor:
         """Parse hekate_ipl.ini content and extract boot entries"""
         entries = {
             'config': None,
+            'ofw': None,
             'semistock': None,
             'sysmmc': None,
             'emummc': None,
@@ -786,6 +787,8 @@ class PostProcessor:
                     entry_text = '\n'.join(current_lines)
                     if current_entry == 'config':
                         entries['config'] = entry_text
+                    elif current_entry == 'ofw':
+                        entries['ofw'] = entry_text
                     elif current_entry == 'semistock':
                         entries['semistock'] = entry_text
                     elif current_entry == 'sysmmc':
@@ -801,6 +804,8 @@ class PostProcessor:
 
                 if header.startswith('[CONFIG') or header.startswith('#[CONFIG'):
                     current_entry = 'config'
+                elif 'STOCK' in header and 'OFW' in header:
+                    current_entry = 'ofw'
                 elif 'SEMI-STOCK' in header and 'SYSMMC' in header:
                     current_entry = 'semistock'
                 elif 'CFW' in header and 'SYSMMC' in header:
@@ -817,6 +822,8 @@ class PostProcessor:
             entry_text = '\n'.join(current_lines)
             if current_entry == 'config':
                 entries['config'] = entry_text
+            elif current_entry == 'ofw':
+                entries['ofw'] = entry_text
             elif current_entry == 'semistock':
                 entries['semistock'] = entry_text
             elif current_entry == 'sysmmc':
@@ -828,7 +835,7 @@ class PostProcessor:
 
         return entries
 
-    def build_hekate_ini(self, entries, enable_semistock, enable_sysmmc, enable_emummc):
+    def build_hekate_ini(self, entries, enable_ofw, enable_semistock, enable_sysmmc, enable_emummc):
         """Build hekate_ipl.ini content from entries"""
         sections = []
 
@@ -836,6 +843,14 @@ class PostProcessor:
         if entries['config']:
             # Ensure it's not commented out
             sections.append('\n'.join(line.lstrip('#') for line in entries['config'].splitlines()))
+
+        # Add OFW entry (no network mode modifications needed - always online)
+        if entries['ofw']:
+            uncommented_section = '\n'.join(line.lstrip('#') for line in entries['ofw'].splitlines())
+            if enable_ofw:
+                sections.append(uncommented_section)
+            else:
+                sections.append('\n'.join('#' + line for line in uncommented_section.splitlines()))
 
         # Add enabled entries
         if entries['semistock']:
@@ -874,14 +889,14 @@ class PostProcessor:
 
         return content
 
-    def apply_hekate_config(self, sd_path, enable_semistock, enable_sysmmc, enable_emummc):
+    def apply_hekate_config(self, sd_path, enable_ofw, enable_semistock, enable_sysmmc, enable_emummc):
         """Apply Hekate boot menu configuration"""
         if not sd_path:
             self.gui.show_custom_info("Error", "Please set SD card path first", width=400, height=180)
             return
 
         # Validate that at least one option is enabled
-        if not (enable_semistock or enable_sysmmc or enable_emummc):
+        if not (enable_ofw or enable_semistock or enable_sysmmc or enable_emummc):
             self.gui.show_custom_info(
                 "Invalid Configuration",
                 "At least one boot option must be enabled.\n\n"
@@ -915,11 +930,13 @@ class PostProcessor:
         entries = self.parse_hekate_ini(content)
 
         # Build new content
-        new_content = self.build_hekate_ini(entries, enable_semistock, enable_sysmmc, enable_emummc)
+        new_content = self.build_hekate_ini(entries, enable_ofw, enable_semistock, enable_sysmmc, enable_emummc)
 
         # Write to file
         if self.write_file(hekate_path, new_content):
             enabled_options = []
+            if enable_ofw:
+                enabled_options.append("100% Stock OFW")
             if enable_semistock:
                 enabled_options.append("Semi-Stock (SYSMMC)")
             if enable_sysmmc:
