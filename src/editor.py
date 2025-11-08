@@ -187,10 +187,24 @@ class ComponentEditor:
                     item_id = self.gui.editor_assets_list.insert('', END, values=(pattern,))
                     self.temp_asset_configs[item_id] = asset_config
             else:
-                # Single asset format - for backward compatibility, show warning
-                # This format is deprecated - users should migrate to asset_patterns
+                # Single asset format - for backward compatibility
+                # Need to show the legacy pattern field and hide the multi-asset UI
+                self.gui.editor_assets_label.grid_remove()
+                self.gui.editor_assets_frame.grid_remove()
+                self.gui.editor_pattern_label.grid(row=8, column=0, sticky='w', pady=5, padx=(0, 10))
+                self.gui.editor_pattern.grid(row=8, column=1, sticky='ew', pady=5, padx=(0, 10))
+
                 self.gui.editor_pattern.delete(0, END)
                 self.gui.editor_pattern.insert(0, comp_data.get('asset_pattern', ''))
+
+                # Load legacy processing steps
+                self.gui.editor_steps_info.config(text="(legacy single-asset format)")
+                steps = comp_data.get('processing_steps', [])
+                for step in steps:
+                    action = step.get('action', 'N/A')
+                    details = ', '.join([f"{k}='{v}'" for k, v in step.items() if k != 'action'])
+                    display = f"{action}: {details}" if details else action
+                    self.gui.editor_steps_list.insert('', END, values=(display,))
 
     def on_asset_selection_change(self, event):
         """Handle asset pattern selection and load its processing steps"""
@@ -442,16 +456,20 @@ class ComponentEditor:
                 # Single-asset format (backward compatibility)
                 # This format is deprecated but still supported for existing components
                 new_data['asset_pattern'] = asset_pattern
-                # Preserve existing processing_steps from component data
-                if self.current_selection:
-                    existing_steps = self.gui.components_data.get(self.current_selection, {}).get('processing_steps', [])
-                    new_data['processing_steps'] = existing_steps
+                # Read processing_steps from the UI (user may have edited them)
+                processing_steps = []
+                for item_id in self.gui.editor_steps_list.get_children():
+                    step_str = self.gui.editor_steps_list.item(item_id, 'values')[0]
+                    processing_steps.append(self._parse_step_string(step_str))
+                new_data['processing_steps'] = processing_steps
         else:
-            # direct_url source type - preserve legacy processing_steps from existing data
+            # direct_url source type - read processing_steps from UI
             new_data['asset_pattern'] = asset_pattern
-            if self.current_selection:
-                existing_steps = self.gui.components_data.get(self.current_selection, {}).get('processing_steps', [])
-                new_data['processing_steps'] = existing_steps
+            processing_steps = []
+            for item_id in self.gui.editor_steps_list.get_children():
+                step_str = self.gui.editor_steps_list.item(item_id, 'values')[0]
+                processing_steps.append(self._parse_step_string(step_str))
+            new_data['processing_steps'] = processing_steps
 
         # If we are renaming a component (ID changed), we need to remove the old one
         if not is_new_component and comp_id != self.current_selection:
@@ -534,8 +552,13 @@ class ComponentEditor:
     # ==================== Processing Steps Management ====================
 
     def add_step(self):
-        """Add a processing step to the selected asset pattern"""
-        if not self.selected_asset_item:
+        """Add a processing step to the selected asset pattern or legacy component"""
+        # Check if we're in legacy mode (no selected asset but component is loaded)
+        is_legacy = (not self.selected_asset_item and
+                     self.current_selection and
+                     self.gui.editor_steps_info.cget('text') == "(legacy single-asset format)")
+
+        if not self.selected_asset_item and not is_legacy:
             self.gui.show_custom_info("No Asset Selected",
                                      "Please select an asset pattern first to add processing steps.")
             return
@@ -544,7 +567,12 @@ class ComponentEditor:
 
     def edit_step(self):
         """Edit the selected processing step"""
-        if not self.selected_asset_item:
+        # Check if we're in legacy mode
+        is_legacy = (not self.selected_asset_item and
+                     self.current_selection and
+                     self.gui.editor_steps_info.cget('text') == "(legacy single-asset format)")
+
+        if not self.selected_asset_item and not is_legacy:
             self.gui.show_custom_info("No Asset Selected",
                                      "Please select an asset pattern first.")
             return
@@ -561,7 +589,12 @@ class ComponentEditor:
 
     def remove_step(self):
         """Remove the selected processing step"""
-        if not self.selected_asset_item:
+        # Check if we're in legacy mode
+        is_legacy = (not self.selected_asset_item and
+                     self.current_selection and
+                     self.gui.editor_steps_info.cget('text') == "(legacy single-asset format)")
+
+        if not self.selected_asset_item and not is_legacy:
             self.gui.show_custom_info("No Asset Selected",
                                      "Please select an asset pattern first.")
             return
@@ -578,8 +611,9 @@ class ComponentEditor:
             item_id = selected[0]
             self.gui.editor_steps_list.delete(item_id)
 
-            # Update the asset config in temp storage
-            self._update_asset_config_steps()
+            # Update the asset config in temp storage (only for multi-asset mode)
+            if self.selected_asset_item:
+                self._update_asset_config_steps()
 
     def _show_step_dialog(self, step_to_edit=None, item_id=None):
         """Show dialog to add or edit a processing step"""
@@ -693,8 +727,9 @@ class ComponentEditor:
             else:
                 self.gui.editor_steps_list.insert('', END, values=(display_str,))
 
-            # Update the asset config in temp storage
-            self._update_asset_config_steps()
+            # Update the asset config in temp storage (only for multi-asset mode)
+            if self.selected_asset_item:
+                self._update_asset_config_steps()
 
             step_dialog.destroy()
 
