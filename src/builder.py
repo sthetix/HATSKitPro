@@ -594,6 +594,7 @@ class PackBuilder:
 
         total_steps = len(selected_ids) + 2 # (download/process per component + manifest + zip)
         current_step = 0
+        any_component_failed = False # Flag to track if any component fails
 
         # Check if we should inherit firmware info from last build
         last_build_fw = self.gui.last_build_data.get('supported_firmware', 'N/A')
@@ -629,7 +630,8 @@ class PackBuilder:
                 comp_data = self.gui.components_data.get(comp_id)
                 if not comp_data:
                     log(f"❌ ERROR: Component '{comp_id}' not found in definitions. Skipping.")
-                    continue
+                    any_component_failed = True
+                    break
 
                 version_to_build = comp_data.get('asset_info', {}).get('version', 'N/A')
                 log(f"\n▶ Processing: {comp_data['name']} ({version_to_build})")
@@ -639,7 +641,8 @@ class PackBuilder:
 
                 if not asset_configs:
                     log(f"  ❌ No asset patterns defined. Skipping component.")
-                    continue
+                    any_component_failed = True
+                    break
 
                 all_component_files = []
                 component_failed = False
@@ -678,8 +681,9 @@ class PackBuilder:
                         break
 
                 if component_failed:
-                    log(f"  ❌ Component '{comp_data['name']}' failed. Skipping.")
-                    continue
+                    log(f"  ❌ Component '{comp_data['name']}' failed. Halting build.")
+                    any_component_failed = True
+                    break # Exit the main component loop
 
                 # Add to manifest
                 manifest['components'][comp_id] = {
@@ -697,6 +701,16 @@ class PackBuilder:
 
                 current_step += 1
                 update_progress((current_step / total_steps) * 100)
+
+            # --- Halt build if any component failed ---
+            if any_component_failed:
+                log("\n\n❌ Build failed because one or more components could not be processed.")
+                log("The pack was not created. Please review the errors above.")
+                self.gui.root.after(100, lambda: [
+                    close_button.config(state=NORMAL),
+                    self.gui.show_custom_info("Build Failed", "One or more components failed to download or process.\nThe ZIP file was not created.", parent=window, height=250)
+                ])
+                return
 
             # --- Compute content hash AFTER all downloads are complete ---
             log("\n▶ Computing content hash from downloaded versions...")
