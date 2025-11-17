@@ -383,8 +383,11 @@ class PackBuilder:
         if not output_file:
             return
 
+        # Get build comment
+        build_comment = self.gui.build_comment.get().strip()
+
         # Show progress window
-        self.show_build_progress(selected, output_file)
+        self.show_build_progress(selected, output_file, build_comment)
     
     def fetch_github_versions(self):
         """Fetch latest versions from GitHub for components without a specific version set"""
@@ -490,7 +493,7 @@ class PackBuilder:
         for comp_id, comp_data in components_to_check:
             repo = comp_data['repo']
             # Fetch the list of releases. The first one is always the newest.
-            api_url = f"https://api.github.com/repos/{repo}/releases?per_page=1"
+            api_url = f"https://api.github.com/repos/{repo}/releases?per_page=5"
             log(f"Checking: {comp_data['name']} ({repo})")
 
             try:
@@ -550,7 +553,7 @@ class PackBuilder:
             self.gui.show_custom_info("Fetch Complete", summary, parent=window, height=230)
         ])
 
-    def show_build_progress(self, selected, output_file):
+    def show_build_progress(self, selected, output_file, build_comment=""):
         """Show build progress window"""
         progress_window = ttk.Toplevel(self.gui.root)
         progress_window.title("Building Pack")
@@ -575,11 +578,11 @@ class PackBuilder:
 
         # Run build in a separate thread
         thread = threading.Thread(target=self._worker_build_pack, 
-                                  args=(selected, output_file, progress_window, log_text, progress, close_btn), 
+                                  args=(selected, output_file, progress_window, log_text, progress, close_btn, build_comment), 
                                   daemon=True)
         thread.start()
 
-    def _worker_build_pack(self, selected_ids, output_file, window, log_widget, progress_bar, close_button):
+    def _worker_build_pack(self, selected_ids, output_file, window, log_widget, progress_bar, close_button, build_comment=""):
         """Worker thread to build the HATS pack."""
         def log(message):
             log_widget.config(state='normal')
@@ -775,10 +778,14 @@ class PackBuilder:
                         if last_comp and last_comp.get('version') != comp_data['version']:
                             version_changes.append(f"- {comp_data['name']}: {last_comp.get('version')} -> {comp_data['version']}")
 
-                    if version_changes:
+                    if version_changes or build_comment:
                         f.write("--- CHANGELOG (What's New Since Last Build) ---\n")
-                        for change in version_changes:
-                            f.write(f"{change}\n")
+                        if build_comment:
+                            f.write(f"\nBuild Notes:\n{build_comment}\n\n")
+                        if version_changes:
+                            f.write("Version Updates:\n")
+                            for change in version_changes:
+                                f.write(f"{change}\n")
                         f.write("-------------------------------------------------\n\n")
 
                     # --- Included Components Section ---

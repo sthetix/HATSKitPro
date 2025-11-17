@@ -372,6 +372,15 @@ class HATSKitProGUI:
         preview_scroll.config(command=self.builder_preview.yview)
         self.builder_preview.pack(fill=BOTH, expand=True)
         
+        # Comment input section
+        comment_frame = ttk.Frame(self.builder_tab, padding="10")
+        comment_frame.pack(fill=X, padx=10, pady=(5, 0))
+        
+        ttk.Label(comment_frame, text="Build Comment (optional):", 
+                font=('Segoe UI', 9)).pack(side=LEFT, padx=(0, 5))
+        self.build_comment = ttk.Entry(comment_frame)
+        self.build_comment.pack(side=LEFT, fill=X, expand=True)
+        
         # Action buttons at bottom
         action_frame = ttk.Frame(self.builder_tab, padding="10")
         action_frame.pack(fill=X, padx=10, pady=5)
