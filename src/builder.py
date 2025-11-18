@@ -876,7 +876,7 @@ class PackBuilder:
 
             # Fetch the list of releases. The first one is always the newest,
             # regardless of whether it's a pre-release or a full release.
-            api_url = f"https://api.github.com/repos/{repo}/releases?per_page=1"
+            api_url = f"https://api.github.com/repos/{repo}/releases?per_page=5"
             log(f"  Fetching latest release info...")
 
             req = urllib.request.Request(api_url)
