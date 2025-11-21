@@ -103,47 +103,25 @@
     "repo": "Atmosphere-NX/Atmosphere",
     "source_type": "github_release"
   },
-  "dbi_eng": {
-    "asset_info": {
-      "version": "658"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "not_applicable",
-        "processing_steps": [
-          {
-            "action": "copy_file",
-            "target_path": "/switch/DBI_ENG/"
-          }
-        ]
-      }
-    ],
-    "category": "Homebrew Apps",
-    "description": "MTP file manager and installer.",
-    "name": "DBI ENG",
-    "repo": "https://github.com/rashevskyv/dbi/releases/download/658/DBI.nro",
-    "source_type": "direct_url"
-  },
   "dbi_ru": {
     "asset_info": {
-      "version": "831ru"
+      "version": "DBI.842.ru.zip"
     },
     "asset_patterns": [
       {
-        "pattern": "DBI.nro",
+        "pattern": "DBI*.zip",
         "processing_steps": [
           {
-            "action": "copy_file",
+            "action": "unzip_to_path",
             "target_path": "/switch/DBI_RU/"
           }
         ]
       }
     ],
     "category": "Homebrew Apps",
-    "default": false,
-    "description": "MTP file manager and installer.",
+    "description": "App / Game installer",
     "name": "DBI RU",
-    "repo": "rashevskyv/dbi",
+    "repo": "sthetix/dbi",
     "source_type": "github_release"
   },
   "dns_mitm_manager": {
@@ -168,7 +146,7 @@
   },
   "edizon_overlay": {
     "asset_info": {
-      "version": "v1.0.11"
+      "version": "v1.0.12"
     },
     "asset_patterns": [
       {
@@ -184,50 +162,7 @@
     "category": "Tesla Overlays",
     "description": "Tesla overlay for Edizon.",
     "name": "Edizon Overlay",
-    "repo": "sthetix/EdiZon-Overlay",
-    "source_type": "github_release"
-  },
-  "edizon_se": {
-    "asset_info": {
-      "version": "3.8.37"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "EdiZon.zip",
-        "processing_steps": [
-          {
-            "action": "unzip_to_root"
-          }
-        ]
-      }
-    ],
-    "category": "Homebrew Apps",
-    "default": false,
-    "description": "Save file editor.",
-    "name": "Edizon SE",
-    "repo": "tomvita/EdiZon-SE",
-    "source_type": "github_release"
-  },
-  "goldleaf": {
-    "asset_info": {
-      "version": "1.1.1"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "Goldleaf.nro",
-        "processing_steps": [
-          {
-            "action": "copy_file",
-            "target_path": "/switch/"
-          }
-        ]
-      }
-    ],
-    "category": "Homebrew Apps",
-    "default": false,
-    "description": "Multipurpose homebrew tool.",
-    "name": "Goldleaf",
-    "repo": "XorTroll/Goldleaf",
+    "repo": "proferabg/EdiZon-Overlay",
     "source_type": "github_release"
   },
   "hekate": {
@@ -240,12 +175,6 @@
         "processing_steps": [
           {
             "action": "unzip_to_root"
-          },
-          {
-            "action": "find_and_rename",
-            "source_file_pattern": "hekate_ctcaer_*.bin",
-            "target_filename": "payload.bin",
-            "target_path": "/"
           }
         ]
       }
@@ -406,7 +335,7 @@
   },
   "quickntp": {
     "asset_info": {
-      "version": "1.5.1"
+      "version": "1.5.2"
     },
     "asset_patterns": [
       {
@@ -421,12 +350,12 @@
     "category": "Tesla Overlays",
     "description": "Tesla overlay to sync system clock with an NTP server.",
     "name": "QuickNTP",
-    "repo": "sthetix/QuickNTP",
+    "repo": "nedex/QuickNTP",
     "source_type": "github_release"
   },
   "sphaira": {
     "asset_info": {
-      "version": "0.13.3"
+      "version": "1.0.0"
     },
     "asset_patterns": [
       {
@@ -441,7 +370,7 @@
     "category": "Homebrew Apps",
     "description": "A minimal reimplementation of the barrel.",
     "name": "Sphaira",
-    "repo": "sthetix/sphaira",
+    "repo": "ITotalJustice/sphaira",
     "source_type": "github_release"
   },
   "status_monitor_overlay": {
