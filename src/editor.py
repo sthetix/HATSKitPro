@@ -633,7 +633,7 @@ class ComponentEditor:
         ttk.Label(form_frame, text="Action:", font=('Segoe UI', 9, 'bold')).pack(pady=(5, 2), anchor=W)
         action_var = ttk.StringVar()
         action_combo = ttk.Combobox(form_frame, textvariable=action_var, width=40, state='readonly')
-        action_combo['values'] = ['unzip_to_root', 'copy_file', 'find_and_rename', 'delete_file', 'find_and_copy', 'unzip_subfolder_to_root']
+        action_combo['values'] = ['unzip_to_root', 'unzip_to_path', 'copy_file', 'find_and_rename', 'delete_file', 'find_and_copy', 'unzip_subfolder_to_root']
         action_combo.pack(pady=(0, 10), fill=X)
 
         if step_to_edit:
@@ -655,7 +655,19 @@ class ComponentEditor:
 
             action = action_var.get()
 
-            if action == 'unzip_subfolder_to_root':
+            if action == 'unzip_to_path':
+                ttk.Label(fields_frame, text="Target Path:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
+                path_entry = ttk.Entry(fields_frame, width=50)
+                path_entry.pack(pady=5, fill=X)
+                field_widgets['target_path'] = path_entry
+                if step_to_edit and 'target_path' in step_to_edit:
+                    path_entry.insert(0, step_to_edit['target_path'])
+
+                # Add helpful hint
+                ttk.Label(fields_frame, text="Example: switch/DBI/ or atmosphere/contents/",
+                         font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5), anchor=W)
+
+            elif action == 'unzip_subfolder_to_root':
                 ttk.Label(fields_frame, text="Subfolder Name:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
                 subfolder_entry = ttk.Entry(fields_frame, width=50)
                 subfolder_entry.pack(pady=5, fill=X)

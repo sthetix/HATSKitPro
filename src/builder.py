@@ -693,6 +693,7 @@ class PackBuilder:
                     "name": comp_data['name'],
                     "version": version_to_build,
                     "category": comp_data.get('category', 'Unknown'),
+                    "repo": comp_data.get('repo', ''),
                     "files": [str(p.relative_to(staging_dir)).replace('\\', '/') for p in all_component_files]
                 }
 
@@ -754,43 +755,45 @@ class PackBuilder:
                 last_build_components = self.gui.last_build_data.get('components', {})
 
                 with open(metadata_path, 'w', encoding='utf-8') as f:
-                    f.write("===================================\n")
-                    f.write(f"HATS Pack Summary")
-                    f.write("===================================\n\n")
-                    f.write(f"Generated on: {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
-                    f.write(f"Builder Version: {manifest.get('builder_version', self.gui.VERSION)}-GUI\n")
+                    # Header
+                    f.write("# HATS Pack Summary\n\n")
+
+                    # Metadata section with markdown formatting
+                    f.write(f"**Generated on:** {datetime.datetime.now(datetime.timezone.utc).strftime('%d-%m-%Y %H:%M:%S')} UTC  \n")
+                    f.write(f"**Builder Version:** {manifest.get('builder_version', self.gui.VERSION)}-GUI  \n")
 
                     # Add content hash if available
                     if manifest.get('content_hash') and manifest['content_hash'] != "N/A":
-                        f.write(f"Content Hash: {manifest['content_hash']}\n")
+                        f.write(f"**Content Hash:** `{manifest['content_hash']}`  \n")
 
                     # Add supported firmware info
                     supported_fw = manifest.get('supported_firmware', 'N/A')
                     if supported_fw != "N/A":
-                        f.write(f"Supported Firmware: Up to {supported_fw}\n")
+                        f.write(f"**Supported Firmware:** Up to {supported_fw}  \n")
 
-                    f.write("\n")
-                    
+                    f.write("\n---\n\n")
+
+                    # Changelog section
                     version_changes = []
                     for comp_id, comp_data in manifest['components'].items():
                         last_comp = last_build_components.get(comp_id)
                         # Only show version changes, not newly added/removed components
                         if last_comp and last_comp.get('version') != comp_data['version']:
-                            version_changes.append(f"- {comp_data['name']}: {last_comp.get('version')} -> {comp_data['version']}")
+                            version_changes.append(f"- **{comp_data['name']}:** `{last_comp.get('version')}` → `{comp_data['version']}`")
 
                     if version_changes or build_comment:
-                        f.write("--- CHANGELOG (What's New Since Last Build) ---\n")
+                        f.write("## CHANGELOG (What's New Since Last Build)\n\n")
                         if build_comment:
-                            f.write(f"\nBuild Notes:\n{build_comment}\n\n")
+                            f.write(f"### Build Notes:\n{build_comment}\n\n")
                         if version_changes:
-                            f.write("Version Updates:\n")
+                            f.write("### Version Updates:\n")
                             for change in version_changes:
                                 f.write(f"{change}\n")
-                        f.write("-------------------------------------------------\n\n")
+                        f.write("\n---\n\n")
 
                     # --- Included Components Section ---
-                    f.write("--- INCLUDED COMPONENTS ---\n")
-                    
+                    f.write("## INCLUDED COMPONENTS\n")
+
                     # Group components by category
                     components_by_category = {}
                     for comp_id, comp_data in manifest['components'].items():
@@ -800,9 +803,18 @@ class PackBuilder:
                         components_by_category[category].append(comp_data)
 
                     for category, components in sorted(components_by_category.items()):
-                        f.write(f"\n--- {category.upper()} ---\n")
+                        f.write(f"\n### {category.upper()}\n")
                         for comp in sorted(components, key=lambda x: x['name']):
-                            f.write(f" - {comp['name']} ({comp['version']})\n")
+                            # Extract owner/repo from repo field
+                            repo_info = comp.get('repo', '')
+                            if repo_info:
+                                f.write(f"- **{comp['name']}** (`{comp['version']}`) - {repo_info}\n")
+                            else:
+                                f.write(f"- **{comp['name']}** (`{comp['version']}`)\n")
+
+                    # Footer
+                    f.write("\n---\n\n")
+                    f.write("<sub>Generated with HATSKit Pro Builder</sub>\n")
 
                 log(f"  ✅ {metadata_path.name} created.")
 
@@ -969,6 +981,22 @@ class PackBuilder:
                     all_processed_files.extend(
                         staging_dir / member.filename for member in zip_ref.infolist() if not member.is_dir()
                     )
+            elif action == 'unzip_to_path':
+                target_path_str = step.get('target_path', '').lstrip('/')
+                if not target_path_str:
+                    log("    ❌ 'unzip_to_path' is missing 'target_path'.")
+                    continue
+
+                target_dir = staging_dir / target_path_str
+                target_dir.mkdir(parents=True, exist_ok=True)
+
+                with zipfile.ZipFile(asset_path, 'r') as zip_ref:
+                    zip_ref.extractall(target_dir)
+                    # Record all extracted files for the manifest
+                    all_processed_files.extend(
+                        target_dir / member.filename for member in zip_ref.infolist() if not member.is_dir()
+                    )
+                log(f"    ✅ Extracted to: {target_path_str}")
             elif action == 'copy_file':
                 target_dir_str = step.get('target_path', '').lstrip('/')
                 if not target_dir_str:
