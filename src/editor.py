@@ -621,14 +621,14 @@ class ComponentEditor:
 
         step_dialog = ttk.Toplevel(self.gui.root)
         step_dialog.title("Edit Step" if is_edit else "Add Step")
-        step_dialog.geometry("500x350")
+        step_dialog.geometry("500x450")
         step_dialog.resizable(False, False)
         step_dialog.transient(self.gui.root)
         step_dialog.grab_set()
 
         # Form
         form_frame = ttk.Frame(step_dialog, padding=15)
-        form_frame.pack(fill=BOTH, expand=True)
+        form_frame.pack(fill=BOTH, expand=False, side=TOP)
 
         ttk.Label(form_frame, text="Action:", font=('Segoe UI', 9, 'bold')).pack(pady=(5, 2), anchor=W)
         action_var = ttk.StringVar()
@@ -643,7 +643,7 @@ class ComponentEditor:
 
         # Dynamic fields
         fields_frame = ttk.Frame(form_frame)
-        fields_frame.pack(fill=BOTH, expand=True, pady=5)
+        fields_frame.pack(fill=X, expand=False, pady=5)
 
         field_widgets = {}
 
@@ -712,7 +712,7 @@ class ComponentEditor:
 
         # Buttons
         button_frame = ttk.Frame(step_dialog)
-        button_frame.pack(pady=10)
+        button_frame.pack(side=BOTTOM, pady=10)
 
         def save_step():
             """Save the step"""
