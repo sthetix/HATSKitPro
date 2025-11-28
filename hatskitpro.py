@@ -19,7 +19,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.2.3"
+VERSION = "1.2.4"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
@@ -75,6 +75,7 @@ class HATSKitProGUI:
         self.components_data = {}
         self.config_data = {}
         self.last_build_data = {}
+        self.manual_versions = {}  # Store manual version inputs {comp_id: version_string}
         self.MANIFEST_FILE = MANIFEST_FILE # Make it an instance attribute
         self.VERSION = VERSION # Make it an instance attribute
         
@@ -277,8 +278,9 @@ class HATSKitProGUI:
         # Info panel
         info_frame = ttk.Labelframe(self.builder_tab, text="Information", padding="10")
         info_frame.pack(fill=X, padx=10, pady=5)
-        
-        ttk.Label(info_frame, text="Select components to include in your HATS pack. Use Ctrl+Click or Shift+Click to select multiple.",
+
+        ttk.Label(info_frame, text="Select components to include in your HATS pack. Use Ctrl+Click or Shift+Click to select multiple.\n"
+                                   "💡 Double-click any component to set a specific version manually.",
                 font=('Segoe UI', 9)).pack()
         
         # Main content area
@@ -312,7 +314,7 @@ class HATSKitProGUI:
         
         self.builder_list = ttk.Treeview(
             list_frame,
-            columns=('name', 'category'),
+            columns=('name', 'category', 'version'),
             show='headings',
             yscrollcommand=list_scroll.set,
             selectmode='extended',
@@ -321,9 +323,11 @@ class HATSKitProGUI:
 
         self.builder_list.heading('name', text='Component Name')
         self.builder_list.heading('category', text='Category')
+        self.builder_list.heading('version', text='Manual Version')
 
-        self.builder_list.column('name', width=250, minwidth=150)
-        self.builder_list.column('category', width=150, minwidth=80)
+        self.builder_list.column('name', width=180, minwidth=120)
+        self.builder_list.column('category', width=120, minwidth=80)
+        self.builder_list.column('version', width=150, minwidth=100)
         
         list_scroll.config(command=self.builder_list.yview)
         self.builder_list.pack(fill=BOTH, expand=True)

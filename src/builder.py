@@ -38,10 +38,13 @@ class PackBuilder:
         # Search and filter
         self.gui.builder_search.bind('<KeyRelease>', self.filter_builder_components)
         self.gui.builder_category_filter.bind('<<ComboboxSelected>>', self.filter_builder_components)
-        
+
         # Selection change
         self.gui.builder_list.bind('<<TreeviewSelect>>', self.on_builder_selection_change)
-        
+
+        # Double-click to edit version
+        self.gui.builder_list.bind('<Double-Button-1>', self.on_version_double_click)
+
         # Get button references and connect commands
         # We need to find the buttons in the UI and connect them
         builder_buttons = self.gui.builder_tab.winfo_children()
@@ -68,6 +71,89 @@ class PackBuilder:
                 find_buttons(child)
         
         find_buttons(self.gui.builder_tab)
+
+    def on_version_double_click(self, event):
+        """Handle double-click on component to edit manual version"""
+        region = self.gui.builder_list.identify_region(event.x, event.y)
+        if region != "cell":
+            return
+
+        # Get the clicked item
+        item = self.gui.builder_list.identify_row(event.y)
+        if not item:
+            return
+
+        comp_id = item
+        comp_data = self.gui.components_data.get(comp_id)
+        if not comp_data:
+            return
+
+        # Show version input dialog
+        self.show_version_input_dialog(comp_id, comp_data)
+
+    def show_version_input_dialog(self, comp_id, comp_data):
+        """Show dialog to input manual version for a component"""
+        dialog = ttk.Toplevel(self.gui.root)
+        dialog.title(f"Set Version - {comp_data['name']}")
+        dialog.geometry("500x350")
+        dialog.transient(self.gui.root)
+        dialog.grab_set()
+
+        info_frame = ttk.Frame(dialog, padding=20)
+        info_frame.pack(fill=BOTH, expand=True)
+
+        ttk.Label(info_frame, text=f"Component: {comp_data['name']}",
+                  font=('Segoe UI', 10, 'bold')).pack(pady=(0, 10))
+
+        ttk.Label(info_frame, text="Enter a specific version to download (e.g., v1.7.1, 6.2.0)\n"
+                                   "Leave empty to fetch the latest version automatically.",
+                  wraplength=450).pack(pady=(0, 15))
+
+        # Current manual version
+        current_manual = self.gui.manual_versions.get(comp_id, "")
+
+        ttk.Label(info_frame, text="Version:").pack(anchor=W)
+        version_entry = ttk.Entry(info_frame, width=30)
+        version_entry.pack(fill=X, pady=5)
+        version_entry.insert(0, current_manual)
+        version_entry.focus()
+
+        # Info about current version
+        fetched_version = comp_data.get('asset_info', {}).get('version', 'N/A')
+        if fetched_version != 'N/A':
+            ttk.Label(info_frame, text=f"Latest fetched version: {fetched_version}",
+                      font=('Segoe UI', 8), bootstyle="secondary").pack(pady=(5, 0))
+
+        button_frame = ttk.Frame(info_frame)
+        button_frame.pack(pady=(15, 0))
+
+        def save_version():
+            version = version_entry.get().strip()
+            if version:
+                self.gui.manual_versions[comp_id] = version
+            else:
+                # Remove manual version if empty
+                self.gui.manual_versions.pop(comp_id, None)
+
+            # Refresh the display
+            self.filter_builder_components()
+            self.update_builder_preview()
+            dialog.destroy()
+
+        def clear_version():
+            self.gui.manual_versions.pop(comp_id, None)
+            self.filter_builder_components()
+            self.update_builder_preview()
+            dialog.destroy()
+
+        ttk.Button(button_frame, text="Save", command=save_version,
+                   bootstyle="primary").pack(side=LEFT, padx=5)
+        ttk.Button(button_frame, text="Clear", command=clear_version,
+                   bootstyle="warning").pack(side=LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=dialog.destroy,
+                   bootstyle="secondary").pack(side=LEFT, padx=5)
+
+        self.gui.center_window(dialog)
 
     def compute_content_hash(self, selected_components):
         """
@@ -215,8 +301,11 @@ class PackBuilder:
 
             display_name = comp_data['name']
 
+            # Get manual version if set
+            manual_version = self.gui.manual_versions.get(comp_id, "Latest")
+
             self.gui.builder_list.insert('', END, iid=comp_id,
-                                         values=(display_name, category))
+                                         values=(display_name, category, manual_version))
 
         # Handle selection
         if initial_load: # On first load, prioritize last build, then defaults
@@ -255,22 +344,31 @@ class PackBuilder:
         for comp_id in selected:
             comp = self.gui.components_data.get(comp_id, {})
 
-            # Priority: Use fetched version from asset_info if available, otherwise from last_build.json
-            fetched_version = comp.get('asset_info', {}).get('version', 'N/A')
-            version = fetched_version
+            # Priority 1: Manual version input (highest priority)
+            manual_version = self.gui.manual_versions.get(comp_id, "")
 
-            # If no fetched version, try last build version
+            # Priority 2: Use fetched version from asset_info if available
+            fetched_version = comp.get('asset_info', {}).get('version', 'N/A')
+
+            # Determine which version to use
+            if manual_version:
+                version = manual_version
+            else:
+                version = fetched_version
+
+            # Priority 3: If no fetched version and no manual, try last build version
             if version == 'N/A' and comp_id in last_build_components:
                 version = last_build_components[comp_id].get('version', 'N/A')
 
-            # If still no version and it's a direct_url, try to extract from URL for preview
+            # Priority 4: If still no version and it's a direct_url, try to extract from URL for preview
             if version == 'N/A' and comp.get('source_type') == 'direct_url':
                 url = comp.get('repo', '')
                 if url:
                     version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
                     if version_match:
                         version = version_match.group(1)
-                        fetched_version = version  # Update fetched_version for comparison
+                        if not manual_version:
+                            fetched_version = version  # Update fetched_version for comparison
 
             # Determine component name and check if it's new/updated
             display_name = comp.get('name', comp_id)
@@ -444,10 +542,16 @@ class PackBuilder:
         components_to_check = []
         direct_url_components = []
         other_skipped_components = []
+        manual_version_components = []
 
         for cid in selected_ids:
             cdata = self.gui.components_data.get(cid)
             if not cdata:
+                continue
+
+            # Skip components with manual versions
+            if cid in self.gui.manual_versions:
+                manual_version_components.append((cid, cdata))
                 continue
 
             source_type = cdata.get('source_type')
@@ -459,7 +563,13 @@ class PackBuilder:
             else:
                 other_skipped_components.append((cid, cdata))
 
-        log(f"Found {len(components_to_check)} GitHub components to fetch...")
+        if len(manual_version_components) > 0:
+            log(f"Skipped {len(manual_version_components)} components with manual versions set:")
+            for cid, cdata in manual_version_components:
+                manual_ver = self.gui.manual_versions.get(cid, "")
+                log(f"  - {cdata.get('name', cid)}: {manual_ver} (manual)")
+
+        log(f"\nFound {len(components_to_check)} GitHub components to fetch...")
 
         # Process direct URL components to extract versions from URLs
         if len(direct_url_components) > 0:
@@ -530,11 +640,13 @@ class PackBuilder:
                 log(f"  -> ERROR: {e}")
                 failed_count += 1
 
-        total_skipped = len(other_skipped_components)
+        total_skipped = len(other_skipped_components) + len(manual_version_components)
 
         log("\n" + "="*30)
         log("Fetch complete!")
         log(f"Updated: {updated_count} | Failed: {failed_count} | Skipped: {total_skipped}")
+        if len(manual_version_components) > 0:
+            log(f"  (includes {len(manual_version_components)} with manual versions)")
 
         # Stop progress and re-enable button from the main thread
         summary = f"Finished checking versions.\nUpdated: {updated_count}\nFailed: {failed_count}"
@@ -636,8 +748,14 @@ class PackBuilder:
                     any_component_failed = True
                     break
 
-                version_to_build = comp_data.get('asset_info', {}).get('version', 'N/A')
-                log(f"\n▶ Processing: {comp_data['name']} ({version_to_build})")
+                # Check for manual version first, otherwise use fetched version
+                manual_version = self.gui.manual_versions.get(comp_id, "")
+                if manual_version:
+                    version_to_build = manual_version
+                    log(f"\n▶ Processing: {comp_data['name']} ({version_to_build}) [MANUAL]")
+                else:
+                    version_to_build = comp_data.get('asset_info', {}).get('version', 'N/A')
+                    log(f"\n▶ Processing: {comp_data['name']} ({version_to_build})")
 
                 # Get asset configurations (handles both single and multiple assets)
                 asset_configs = self._get_asset_configs(comp_data)
@@ -660,7 +778,7 @@ class PackBuilder:
 
                     # 1. Download asset
                     try:
-                        asset_path = self._download_asset(comp_data, Path(temp_dir), log, pattern=asset_pattern)
+                        asset_path = self._download_asset(comp_data, Path(temp_dir), log, pattern=asset_pattern, version=version_to_build)
                         if not asset_path:
                             log(f"  ❌ FAILED to download '{asset_pattern}'. Skipping this asset.")
                             component_failed = True
@@ -867,7 +985,7 @@ class PackBuilder:
 
         return []
 
-    def _download_asset(self, comp_data, temp_dir, log, pattern=None):
+    def _download_asset(self, comp_data, temp_dir, log, pattern=None, version=None):
         """
         Downloads the asset for a component.
 
@@ -876,6 +994,7 @@ class PackBuilder:
             temp_dir: Temporary directory for downloads
             log: Logging function
             pattern: Specific asset pattern to download (for multi-asset components)
+            version: Specific version to download (if None, fetches latest)
         """
         source_type = comp_data.get('source_type')
         if source_type == 'github_release':
@@ -886,10 +1005,14 @@ class PackBuilder:
                 log("  ❌ Invalid component: missing 'repo' or 'asset_pattern'.")
                 return None
 
-            # Fetch the list of releases. The first one is always the newest,
-            # regardless of whether it's a pre-release or a full release.
-            api_url = f"https://api.github.com/repos/{repo}/releases?per_page=5"
-            log(f"  Fetching latest release info...")
+            # Fetch releases - more if looking for specific version
+            per_page = 10 if version and version != 'N/A' else 5
+            api_url = f"https://api.github.com/repos/{repo}/releases?per_page={per_page}"
+
+            if version and version != 'N/A':
+                log(f"  Fetching release info for version {version}...")
+            else:
+                log(f"  Fetching latest release info...")
 
             req = urllib.request.Request(api_url)
             pat = self.gui.github_pat.get()
@@ -900,8 +1023,28 @@ class PackBuilder:
                 with urllib.request.urlopen(req, timeout=15) as response:
                     releases = json.loads(response.read().decode())
                     if releases:
-                        latest_release = releases[0] # The first one is the newest
-                        for asset in latest_release.get('assets', []):
+                        target_release = None
+
+                        # If specific version requested, find it
+                        if version and version != 'N/A':
+                            for release in releases:
+                                tag = release.get('tag_name', '')
+                                # Match with or without 'v' prefix
+                                if tag == version or tag == f"v{version}" or tag.lstrip('v') == version.lstrip('v'):
+                                    target_release = release
+                                    log(f"  ✅ Found release: {tag}")
+                                    break
+
+                            if not target_release:
+                                log(f"  ❌ Version '{version}' not found in recent releases.")
+                                log(f"     Available versions: {', '.join([r.get('tag_name', 'N/A') for r in releases[:5]])}")
+                                return None
+                        else:
+                            # No specific version, use latest
+                            target_release = releases[0]
+
+                        # Download asset from target release
+                        for asset in target_release.get('assets', []):
                             if fnmatch.fnmatch(asset['name'].lower(), pattern.lower()):
                                 url = asset['browser_download_url']
                                 filename = Path(temp_dir) / asset['name']
@@ -909,7 +1052,7 @@ class PackBuilder:
                                 urllib.request.urlretrieve(url, filename)
                                 log(f"  ✅ Downloaded to: {filename.name}")
                                 return filename
-                        log(f"  ❌ Asset matching '{pattern}' not found in the latest release ({latest_release.get('tag_name')}).")
+                        log(f"  ❌ Asset matching '{pattern}' not found in release {target_release.get('tag_name')}.")
                     else:
                         log(f"  ❌ No releases found for repository '{repo}'.")
             except urllib.error.HTTPError as e:
