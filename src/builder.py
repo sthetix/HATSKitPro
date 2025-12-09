@@ -882,7 +882,7 @@ class PackBuilder:
 
                     # Add content hash if available
                     if manifest.get('content_hash') and manifest['content_hash'] != "N/A":
-                        f.write(f"**Content Hash:** `{manifest['content_hash']}`  \n")
+                        f.write(f"**Content Hash:** {manifest['content_hash']}  \n")
 
                     # Add supported firmware info
                     supported_fw = manifest.get('supported_firmware', 'N/A')
@@ -897,7 +897,7 @@ class PackBuilder:
                         last_comp = last_build_components.get(comp_id)
                         # Only show version changes, not newly added/removed components
                         if last_comp and last_comp.get('version') != comp_data['version']:
-                            version_changes.append(f"- **{comp_data['name']}:** `{last_comp.get('version')}` → `{comp_data['version']}`")
+                            version_changes.append(f"- **{comp_data['name']}:** {last_comp.get('version')} → **{comp_data['version']}**")
 
                     if version_changes or build_comment:
                         f.write("## CHANGELOG (What's New Since Last Build)\n\n")
@@ -926,9 +926,9 @@ class PackBuilder:
                             # Extract owner/repo from repo field
                             repo_info = comp.get('repo', '')
                             if repo_info:
-                                f.write(f"- **{comp['name']}** (`{comp['version']}`) - {repo_info}\n")
+                                f.write(f"- **{comp['name']}** ({comp['version']}) - {repo_info}\n")
                             else:
-                                f.write(f"- **{comp['name']}** (`{comp['version']}`)\n")
+                                f.write(f"- **{comp['name']}** ({comp['version']})\n")
 
                     # Footer
                     f.write("\n---\n\n")
@@ -987,7 +987,7 @@ class PackBuilder:
 
     def _download_asset(self, comp_data, temp_dir, log, pattern=None, version=None):
         """
-        Downloads the asset for a component.
+        Downloads the asset for a component with progress tracking and timeout.
 
         Args:
             comp_data: Component configuration
@@ -1048,10 +1048,21 @@ class PackBuilder:
                             if fnmatch.fnmatch(asset['name'].lower(), pattern.lower()):
                                 url = asset['browser_download_url']
                                 filename = Path(temp_dir) / asset['name']
+                                asset_size = asset.get('size', 0)
+
                                 log(f"  Downloading: {url}")
-                                urllib.request.urlretrieve(url, filename)
-                                log(f"  ✅ Downloaded to: {filename.name}")
-                                return filename
+                                if asset_size > 0:
+                                    size_mb = asset_size / (1024 * 1024)
+                                    log(f"  Size: {size_mb:.2f} MB")
+
+                                # Use improved download method with progress
+                                success = self._download_file_with_progress(url, filename, log)
+                                if success:
+                                    log(f"  ✅ Downloaded to: {filename.name}")
+                                    return filename
+                                else:
+                                    log(f"  ❌ Download failed")
+                                    return None
                         log(f"  ❌ Asset matching '{pattern}' not found in release {target_release.get('tag_name')}.")
                     else:
                         log(f"  ❌ No releases found for repository '{repo}'.")
@@ -1072,27 +1083,106 @@ class PackBuilder:
             filepath = Path(temp_dir) / filename
             log(f"  Downloading from direct URL: {url}")
             try:
-                urllib.request.urlretrieve(url, filepath)
-                log(f"  ✅ Downloaded to: {filename}")
+                # Use improved download method with progress
+                success = self._download_file_with_progress(url, filepath, log)
+                if success:
+                    log(f"  ✅ Downloaded to: {filename}")
 
-                # Extract version from URL (e.g., /658/ -> 658, /v1.2.3/ -> v1.2.3)
-                # Look for patterns like /number/ or /vX.X.X/ in the URL path
-                version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
-                if version_match:
-                    extracted_version = version_match.group(1)
-                    log(f"  ℹ️ Extracted version from URL: {extracted_version}")
-                    # Store the version in asset_info for later use
-                    if 'asset_info' not in comp_data:
-                        comp_data['asset_info'] = {}
-                    comp_data['asset_info']['version'] = extracted_version
+                    # Extract version from URL (e.g., /658/ -> 658, /v1.2.3/ -> v1.2.3)
+                    # Look for patterns like /number/ or /vX.X.X/ in the URL path
+                    version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
+                    if version_match:
+                        extracted_version = version_match.group(1)
+                        log(f"  ℹ️ Extracted version from URL: {extracted_version}")
+                        # Store the version in asset_info for later use
+                        if 'asset_info' not in comp_data:
+                            comp_data['asset_info'] = {}
+                        comp_data['asset_info']['version'] = extracted_version
 
-                return filepath
+                    return filepath
+                else:
+                    log(f"  ❌ Download failed")
+                    return None
             except Exception as e:
                 log(f"  ❌ Failed to download from direct URL: {e}")
                 return None
         else:
             log(f"  ❌ Unsupported source_type: '{source_type}'")
             return None
+
+    def _download_file_with_progress(self, url, filepath, log, timeout=120, retries=2):
+        """
+        Download a file with progress tracking, timeout, and retry logic.
+
+        Args:
+            url: URL to download from
+            filepath: Local path to save file
+            log: Logging function
+            timeout: Download timeout in seconds (default: 120)
+            retries: Number of retry attempts (default: 2)
+
+        Returns:
+            bool: True if download succeeded, False otherwise
+        """
+        for attempt in range(retries + 1):
+            try:
+                if attempt > 0:
+                    log(f"  ⟳ Retry attempt {attempt}/{retries}...")
+
+                # Create request with timeout
+                req = urllib.request.Request(url)
+                req.add_header('User-Agent', 'HATSKit-Pro-Builder')
+
+                # Open connection with timeout
+                with urllib.request.urlopen(req, timeout=timeout) as response:
+                    # Get file size if available
+                    file_size = int(response.headers.get('Content-Length', 0))
+
+                    # Download in chunks with progress
+                    chunk_size = 8192  # 8 KB chunks
+                    downloaded = 0
+                    last_percent = -1
+
+                    with open(filepath, 'wb') as f:
+                        while True:
+                            chunk = response.read(chunk_size)
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            downloaded += len(chunk)
+
+                            # Log progress every 10%
+                            if file_size > 0:
+                                percent = int((downloaded / file_size) * 100)
+                                if percent >= last_percent + 10 and percent <= 100:
+                                    log(f"  ⬇ {percent}% ({downloaded / (1024*1024):.1f} MB / {file_size / (1024*1024):.1f} MB)")
+                                    last_percent = percent
+
+                    # Verify download
+                    if file_size > 0 and downloaded < file_size:
+                        log(f"  ⚠️ Incomplete download: {downloaded} / {file_size} bytes")
+                        if attempt < retries:
+                            continue
+                        return False
+
+                    return True
+
+            except urllib.error.URLError as e:
+                log(f"  ⚠️ Download error: {e.reason}")
+                if attempt < retries:
+                    import time
+                    time.sleep(2)  # Wait before retry
+                    continue
+                return False
+            except Exception as e:
+                log(f"  ⚠️ Unexpected error: {e}")
+                if attempt < retries:
+                    import time
+                    time.sleep(2)
+                    continue
+                return False
+
+        return False
 
     def _process_asset(self, asset_path, comp_data, staging_dir, log, processing_steps=None):
         """

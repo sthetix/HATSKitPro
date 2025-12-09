@@ -21,6 +21,26 @@
     "repo": "meganukebmp/Switch_90DNS_tester",
     "source_type": "github_release"
   },
+  "FuseCheck": {
+    "asset_info": {
+      "version": "1.0.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "FuseCheck*.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "",
+    "name": "FuseCheck",
+    "repo": "sthetix/FuseCheck",
+    "source_type": "github_release"
+  },
   "Lockpick_RCM_Pro": {
     "asset_info": {
       "version": "1.9.16"
@@ -44,7 +64,7 @@
   },
   "Sigpatches": {
     "asset_info": {
-      "version": "1.9.6-beta"
+      "version": "1.9.7"
     },
     "asset_patterns": [
       {
@@ -84,7 +104,7 @@
   },
   "atmosphere": {
     "asset_info": {
-      "version": "1.10.0-prerelease"
+      "version": "1.10.1"
     },
     "asset_patterns": [
       {
@@ -97,7 +117,6 @@
       }
     ],
     "category": "Essential",
-    "default": false,
     "description": "Core CFW. Essential.",
     "name": "Atmosphere",
     "repo": "Atmosphere-NX/Atmosphere",
@@ -105,7 +124,7 @@
   },
   "dbi_ru": {
     "asset_info": {
-      "version": "DBI.842.ru.zip"
+      "version": "DBI.851.ru.zip"
     },
     "asset_patterns": [
       {
@@ -146,7 +165,7 @@
   },
   "edizon_overlay": {
     "asset_info": {
-      "version": "v1.0.12"
+      "version": "v1.0.14"
     },
     "asset_patterns": [
       {
@@ -167,11 +186,11 @@
   },
   "hekate": {
     "asset_info": {
-      "version": "v6.4.1"
+      "version": "v6.4.2"
     },
     "asset_patterns": [
       {
-        "pattern": "hekate-ext_ctcaer*.zip",
+        "pattern": "hekate-ext*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -187,7 +206,7 @@
   },
   "jksv": {
     "asset_info": {
-      "version": "11/16/2025"
+      "version": "12/02/2025"
     },
     "asset_patterns": [
       {
@@ -229,7 +248,7 @@
   },
   "mission_control": {
     "asset_info": {
-      "version": "v0.14.0"
+      "version": "v0.14.1"
     },
     "asset_patterns": [
       {
@@ -250,7 +269,7 @@
   },
   "nx-ovlloader": {
     "asset_info": {
-      "version": "v1.1.2"
+      "version": "v2.0.0"
     },
     "asset_patterns": [
       {
@@ -335,7 +354,7 @@
   },
   "quickntp": {
     "asset_info": {
-      "version": "1.5.2"
+      "version": "1.6.0"
     },
     "asset_patterns": [
       {
@@ -424,7 +443,7 @@
   },
   "sys_clk": {
     "asset_info": {
-      "version": "2.0.1+r17"
+      "version": "2.0.1+r19"
     },
     "asset_patterns": [
       {
@@ -465,7 +484,7 @@
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.4.3"
+      "version": "v1.4.5"
     },
     "asset_patterns": [
       {
@@ -487,33 +506,11 @@
   },
   "tegraexplorer": {
     "asset_info": {
-      "version": "4.2.0"
+      "version": "4.2.1"
     },
     "asset_patterns": [
       {
-        "pattern": "TegraExplorer.bin",
-        "processing_steps": [
-          {
-            "action": "copy_file",
-            "target_path": "/bootloader/payloads/"
-          }
-        ]
-      }
-    ],
-    "category": "Payloads",
-    "default": false,
-    "description": "A payload-based file explorer.",
-    "name": "TegraExplorer",
-    "repo": "suchmememanyskill/TegraExplorer",
-    "source_type": "github_release"
-  },
-  "tinfoil_applet": {
-    "asset_info": {
-      "version": "20.0"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "PackageManager-*-v*.zip",
+        "pattern": "TegraExplorer*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -521,33 +518,10 @@
         ]
       }
     ],
-    "category": "Homebrew Apps",
-    "default": false,
-    "description": "Title manager. Uses less memory.",
-    "name": "Tinfoil Applet version",
-    "repo": "NexlifyHub/PackageManager",
-    "source_type": "github_release"
-  },
-  "tinfoil_nsp": {
-    "asset_info": {
-      "version": "20.0"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "PackageManager-*-v*.nsp",
-        "processing_steps": [
-          {
-            "action": "copy_file",
-            "target_path": "/switch/tinfoil/nsp/"
-          }
-        ]
-      }
-    ],
-    "category": "Homebrew Apps",
-    "default": false,
-    "description": "Title manager self-installer.",
-    "name": "Tinfoil NSP version",
-    "repo": "NexlifyHub/PackageManager",
+    "category": "Payloads",
+    "description": "A payload-based file explorer.",
+    "name": "TegraExplorer",
+    "repo": "sthetix/TegraExplorer",
     "source_type": "github_release"
   },
   "tinwoo": {
@@ -573,7 +547,7 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.1.8"
+      "version": "v2.2.2"
     },
     "asset_patterns": [
       {
