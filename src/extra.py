@@ -191,6 +191,7 @@ class PostProcessor:
         entries = self.parse_hekate_ini(content)
 
         return {
+            'ofw': entries['ofw'] is not None and not entries['ofw'].lstrip().startswith('#'),
             'semistock': entries['semistock'] is not None and not entries['semistock'].lstrip().startswith('#'),
             'sysmmc': entries['sysmmc'] is not None and not entries['sysmmc'].lstrip().startswith('#'),
             'emummc': entries['emummc'] is not None and not entries['emummc'].lstrip().startswith('#')

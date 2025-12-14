@@ -67,6 +67,12 @@ class HATSKitProGUI:
         self.root.title(f"HATSKit Pro v{VERSION}")
         self.root.geometry("1100x1200")
         self.root.resizable(True, True)
+
+        # Bind events to debug window state changes
+        self.root.bind('<Unmap>', self._on_window_unmap)
+        self.root.bind('<Map>', self._on_window_map)
+        self.root.bind('<FocusOut>', self._on_focus_out)
+        self.root.bind('<FocusIn>', self._on_focus_in)
         
         # Variables
         self.github_pat = ttk.StringVar()
@@ -961,6 +967,48 @@ class HATSKitProGUI:
 
     # ===== HELPER METHODS =====
 
+    def _on_window_unmap(self, event):
+        """Debug: Called when window is unmapped (minimized/hidden)"""
+        if event.widget == self.root:
+            try:
+                state = self.root.state()
+                geometry = self.root.geometry()
+                x = self.root.winfo_x()
+                y = self.root.winfo_y()
+                print(f"DEBUG: Window UNMAPPED - State: {state}, Geometry: {geometry}, Position: ({x}, {y})")
+            except Exception as e:
+                print(f"DEBUG: Window unmapped - Error getting info: {e}")
+
+    def _on_window_map(self, event):
+        """Debug: Called when window is mapped (shown)"""
+        if event.widget == self.root:
+            try:
+                state = self.root.state()
+                geometry = self.root.geometry()
+                x = self.root.winfo_x()
+                y = self.root.winfo_y()
+                print(f"DEBUG: Window MAPPED - State: {state}, Geometry: {geometry}, Position: ({x}, {y})")
+            except Exception as e:
+                print(f"DEBUG: Window mapped - Error getting info: {e}")
+
+    def _on_focus_out(self, event):
+        """Debug: Called when window loses focus"""
+        if event.widget == self.root:
+            try:
+                state = self.root.state()
+                print(f"DEBUG: Window LOST FOCUS - State: {state}")
+            except Exception as e:
+                print(f"DEBUG: Lost focus - Error: {e}")
+
+    def _on_focus_in(self, event):
+        """Debug: Called when window gains focus"""
+        if event.widget == self.root:
+            try:
+                state = self.root.state()
+                print(f"DEBUG: Window GAINED FOCUS - State: {state}")
+            except Exception as e:
+                print(f"DEBUG: Gained focus - Error: {e}")
+
     def browse_sd_card_manager(self):
         """Browse for SD card from Manager tab (silent, no popup)"""
         from tkinter import filedialog
@@ -1038,11 +1086,13 @@ class HATSKitProGUI:
 
         # Update Hekate Config
         if settings['hekate_config']:
+            self.hekate_ofw_var.set(settings['hekate_config']['ofw'])
             self.hekate_semistock_var.set(settings['hekate_config']['semistock'])
             self.hekate_sysmmc_var.set(settings['hekate_config']['sysmmc'])
             self.hekate_emummc_var.set(settings['hekate_config']['emummc'])
 
         # Enable Hekate toggles and set their active style
+        self.hekate_ofw_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
         self.hekate_semistock_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
         self.hekate_sysmmc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
         self.hekate_emummc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
@@ -1118,11 +1168,13 @@ class HATSKitProGUI:
 
         # Update Hekate Config
         if settings['hekate_config']:
+            self.hekate_ofw_var.set(settings['hekate_config']['ofw'])
             self.hekate_semistock_var.set(settings['hekate_config']['semistock'])
             self.hekate_sysmmc_var.set(settings['hekate_config']['sysmmc'])
             self.hekate_emummc_var.set(settings['hekate_config']['emummc'])
-        
+
         # Enable Hekate toggles and set their active style
+        self.hekate_ofw_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
         self.hekate_semistock_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
         self.hekate_sysmmc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
         self.hekate_emummc_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
@@ -1152,6 +1204,8 @@ class HATSKitProGUI:
 
         boot_options = []
         if settings['hekate_config']:
+            if settings['hekate_config']['ofw']:
+                boot_options.append("100% Stock OFW")
             if settings['hekate_config']['semistock']:
                 boot_options.append("Semi-Stock")
             if settings['hekate_config']['sysmmc']:
