@@ -624,8 +624,11 @@ class PackBuilder:
                     if response.status == 200:
                         releases = json.loads(response.read().decode())
                         if releases:
-                            latest_release = releases[0]
-                            latest_version = latest_release.get('tag_name')
+                            latest_release = max(
+                                releases,
+                                key=lambda r: r.get("published_at", "")
+                            )
+                            latest_version = latest_release.get("tag_name")
 
                             if latest_version:
                                 log(f"  -> Found latest version: {latest_version}")
