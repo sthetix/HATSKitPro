@@ -18,7 +18,14 @@ import datetime
 import hashlib
 import fnmatch
 import re
+import ssl
+import certifi
 
+# Global SSL context using certifi CA bundle (macOS fix)
+SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+
+# Override urllib's default HTTPS context globally
+ssl._create_default_https_context = lambda: SSL_CONTEXT
 
 class PackBuilder:
     """Handles Pack Builder functionality"""
@@ -212,7 +219,7 @@ class PackBuilder:
             if log:
                 log(f"  Fetching Atmosphere release info to determine supported firmware...")
 
-            with urllib.request.urlopen(req, timeout=15) as response:
+            with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as response:
                 releases = json.loads(response.read().decode())
 
             # Clean the atmosphere version for comparison
@@ -1020,7 +1027,7 @@ class PackBuilder:
                 req.add_header('Authorization', f'token {pat}')
 
             try:
-                with urllib.request.urlopen(req, timeout=15) as response:
+                with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as response:
                     releases = json.loads(response.read().decode())
                     if releases:
                         target_release = None
