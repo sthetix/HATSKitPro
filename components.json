@@ -1,7 +1,7 @@
 {
   "90dns_tester": {
     "asset_info": {
-      "version": "v1.0.4"
+      "version": "1.0.5"
     },
     "asset_patterns": [
       {
@@ -15,10 +15,74 @@
       }
     ],
     "category": "Homebrew Apps",
-    "default": false,
     "description": "Tests if 90DNS is configured correctly.",
     "name": "Switch 90DNS Tester",
-    "repo": "meganukebmp/Switch_90DNS_tester",
+    "repo": "gzk47/Switch_90DNS_tester",
+    "source_type": "github_release"
+  },
+  "Breeze": {
+    "asset_info": {
+      "version": "beta99s"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "Breeze.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          },
+          {
+            "action": "delete_file",
+            "path": "/atmosphere/contents/420000000000000D"
+          },
+          {
+            "action": "delete_file",
+            "path": "/atmosphere/contents/420000000000000F"
+          },
+          {
+            "action": "delete_file",
+            "path": "/config/sys-ftpd-10k"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/reboot_to_hekate.nro"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/breeze/.Breeze.nro.star"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/edizon"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "A cheating tool designed to work seamlessly with Atmosphere's cheatVM.",
+    "name": "Breeze",
+    "repo": "tomvita/Breeze-Beta",
+    "source_type": "github_release"
+  },
+  "Checkpoint": {
+    "asset_info": {
+      "version": "v3.10.2"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "Checkpoint.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/Checkpoint/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Game saves manager for Nintendo Switch.",
+    "name": "Checkpoint",
+    "repo": "BernardoGiordano/Checkpoint",
     "source_type": "github_release"
   },
   "FuseCheck": {
@@ -36,10 +100,69 @@
       }
     ],
     "category": "Payloads",
-    "description": "",
+    "description": "Nintendo Switch Fuse Compatibility Checker.",
     "name": "FuseCheck",
     "repo": "sthetix/FuseCheck",
     "source_type": "github_release"
+  },
+  "HATSIFY": {
+    "asset_info": {
+      "version": "1.0.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "HATSIFY.bin",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/bootloader/payloads/"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "A simple Nintendo Switch network configuration tool for managing online/offline modes.",
+    "name": "HATSIFY",
+    "repo": "sthetix/HATSIFY",
+    "source_type": "github_release"
+  },
+  "HWFLY": {
+    "asset_info": {
+      "version": "1.1.1"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "hwfly_toolbox.bin",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/bootloader/payloads/"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "A payload to manage HWFLY modchip.",
+    "name": "HWFLY Modchip Toolbox",
+    "repo": "hwfly-nx/hwfly-toolbox",
+    "source_type": "github_release"
+  },
+  "Instinct_NX": {
+    "asset_info": {
+      "version": "N/A"
+    },
+    "asset_pattern": "not_applicable",
+    "category": "Payloads",
+    "description": "A payload to manage Instinct NX modchip.",
+    "name": "Instinct NX Toolbox",
+    "processing_steps": [
+      {
+        "action": "copy_file",
+        "target_path": "/bootloader/payloads/"
+      }
+    ],
+    "repo": "https://github.com/sthetix/FILES/raw/main/Instinct-NX_toolbox.bin",
+    "source_type": "direct_url"
   },
   "Lockpick_RCM_Pro": {
     "asset_info": {
@@ -47,11 +170,10 @@
     },
     "asset_patterns": [
       {
-        "pattern": "Lockpick*.bin",
+        "pattern": "Lockpick*.zip",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/bootloader/payloads"
+            "action": "unzip_to_root"
           }
         ]
       }
@@ -61,6 +183,34 @@
     "name": "Lockpick_RCM_Pro",
     "repo": "sthetix/Lockpick_RCM_Pro",
     "source_type": "github_release"
+  },
+  "NXDumpTool": {
+    "asset_info": {
+      "version": "rewrite-prerelease"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "nxdt_rw_poc.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/NX-DumpTool/"
+          },
+          {
+            "action": "find_and_rename",
+            "source_file_pattern": "*.nro",
+            "target_filename": "NX-DumpTool.nro",
+            "target_path": "/switch/NX-DumpTool/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Dump game and system files from both physical gamecards and digitally installed titles.",
+    "name": "NXDumpTool",
+    "repo": "DarkMatterCore/nxdumptool",
+    "source_type": "github_tag",
+    "tag": "rewrite-prerelease"
   },
   "Sigpatches": {
     "asset_info": {
@@ -102,6 +252,27 @@
     "repo": "HamletDuFromage/aio-switch-updater",
     "source_type": "github_release"
   },
+  "appstore": {
+    "asset_info": {
+      "version": "v2.3.2"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "appstore.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/Appstore/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Download new homebrew apps from your Switch.",
+    "name": "Homebrew Appstore",
+    "repo": "DefenderOfHyrule/hb-appstore",
+    "source_type": "github_release"
+  },
   "atmosphere": {
     "asset_info": {
       "version": "1.10.1"
@@ -117,14 +288,63 @@
       }
     ],
     "category": "Essential",
+    "default": false,
     "description": "Core CFW. Essential.",
     "name": "Atmosphere",
     "repo": "Atmosphere-NX/Atmosphere",
     "source_type": "github_release"
   },
+  "capturesight": {
+    "asset_info": {
+      "version": "v0.13.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "capturesight.ovl",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/.overlays/"
+          }
+        ]
+      }
+    ],
+    "category": "Tesla Overlays",
+    "description": "CaptureSight is a tool to view Pokemon data while playing Pokemon games.",
+    "name": "Capturesight",
+    "repo": "Insektaure/CaptureSight",
+    "source_type": "github_release"
+  },
+  "dbi": {
+    "asset_info": {
+      "version": "v845"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "*.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/DBI/"
+          },
+          {
+            "action": "find_and_rename",
+            "source_file_pattern": "*.en.nro",
+            "target_filename": "DBI.nro",
+            "target_path": "/switch/DBI/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "App / Game installer",
+    "name": "DBI",
+    "repo": "Morce3232/DBIPatcher",
+    "source_type": "github_release"
+  },
   "dbi_ru": {
     "asset_info": {
-      "version": "DBI.851.ru.zip"
+      "version": "DBI.854.ru.zip"
     },
     "asset_patterns": [
       {
@@ -152,7 +372,9 @@
         "pattern": "DNS-MITM_Manager.zip",
         "processing_steps": [
           {
-            "action": "unzip_to_root"
+            "action": "find_and_copy",
+            "source_file_pattern": "*.ovl",
+            "target_path": "/switch/.overlays/"
           }
         ]
       }
@@ -182,6 +404,70 @@
     "description": "Tesla overlay for Edizon.",
     "name": "Edizon Overlay",
     "repo": "proferabg/EdiZon-Overlay",
+    "source_type": "github_release"
+  },
+  "edizon_se": {
+    "asset_info": {
+      "version": "3.8.37a"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "EdiZon.zip",
+        "processing_steps": [
+          {
+            "action": "find_and_copy",
+            "source_file_pattern": "edizon",
+            "target_path": "/switch/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "A Homebrew save file dumper, injector and on-the-fly memory editing and cheat engine.",
+    "name": "Edizon SE",
+    "repo": "tomvita/EdiZon-SE",
+    "source_type": "github_release"
+  },
+  "ftpd": {
+    "asset_info": {
+      "version": "v3.2.2"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "ftpd.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/FTPD/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "FTP server for your Switch.",
+    "name": "FTPD Pro",
+    "repo": "DefenderOfHyrule/ftpd",
+    "source_type": "github_release"
+  },
+  "goldleaf": {
+    "asset_info": {
+      "version": "1.1.1"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "Goldleaf.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/Goldleaf/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Multipurpose homebrew tool.",
+    "name": "Goldleaf",
+    "repo": "DefenderOfHyrule/Goldleaf",
     "source_type": "github_release"
   },
   "hekate": {
@@ -277,15 +563,112 @@
         "processing_steps": [
           {
             "action": "unzip_to_root"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/Ultrahand-Reload"
           }
         ]
       }
     ],
     "category": "Patches",
-    "default": false,
     "description": "Host process for loading Switch overlay OVLs (NROs).",
     "name": "nx-ovlloader",
     "repo": "ppkantorski/nx-ovlloader",
+    "source_type": "github_release"
+  },
+  "nx_shell": {
+    "asset_info": {
+      "version": "4.02"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "NX-Shell.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/NX-Shell/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "A multipurpose file manager.",
+    "name": "NX-Shell",
+    "repo": "DefenderOfHyrule/NX-Shell",
+    "source_type": "github_release"
+  },
+  "picofly": {
+    "asset_info": {
+      "version": "N/A"
+    },
+    "asset_pattern": "not_applicable",
+    "category": "Payloads",
+    "description": "A payload to manage Picofly modchip.",
+    "name": "Picofly Modchip Toolbox",
+    "processing_steps": [
+      {
+        "action": "copy_file",
+        "target_path": "/bootloader/payloads/"
+      },
+      {
+        "action": "find_and_rename",
+        "source_file_pattern": "picofly_toolbox_0.2.bin",
+        "target_filename": "picofly_toolbox.bin",
+        "target_path": "/bootloader/payloads/"
+      }
+    ],
+    "repo": "https://github.com/Ansem-SoD/Picofly/raw/main/Firmwares/picofly_toolbox_0.2.bin",
+    "source_type": "direct_url"
+  },
+  "pkDex": {
+    "asset_info": {
+      "version": "v1.6.3"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "pkDex.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/pkDex/"
+          }
+        ]
+      },
+      {
+        "pattern": "pkDex_High_Res_imgs.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "A Pok\u00e9mon Encyclopedia.",
+    "name": "pkDex",
+    "repo": "Insektaure/pkDex",
+    "source_type": "github_release"
+  },
+  "pkDwich": {
+    "asset_info": {
+      "version": "v1.0.5"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "pkDwich.ovl",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/.overlays/"
+          }
+        ]
+      }
+    ],
+    "category": "Tesla Overlays",
+    "description": "pkDwich is a tool to view Pokemon Scarlet / Violet \"Creative Mode\" sandwich recipes while playing Pokemon games.",
+    "name": "pkDwich",
+    "repo": "Insektaure/pkDwich",
     "source_type": "github_release"
   },
   "prodinfo_gen": {
@@ -304,7 +687,6 @@
       }
     ],
     "category": "Payloads",
-    "default": false,
     "description": "A payload to generate prod.info.",
     "name": "Prodinfo_gen",
     "repo": "CaramelDunes/prodinfo_gen",
@@ -312,7 +694,7 @@
   },
   "quick_reboot_app": {
     "asset_info": {
-      "version": "v2.1.0"
+      "version": "V2.2.0"
     },
     "asset_patterns": [
       {
@@ -328,12 +710,12 @@
     "category": "Homebrew Apps",
     "description": "Reboot to payloads from the homebrew menu.",
     "name": "Quick-Reboot (App)",
-    "repo": "sthetix/Quick-Reboot",
+    "repo": "eradicatinglove/Quick-Reboot",
     "source_type": "github_release"
   },
   "quick_reboot_ovl": {
     "asset_info": {
-      "version": "v2.1.0"
+      "version": "V2.2.0"
     },
     "asset_patterns": [
       {
@@ -349,7 +731,7 @@
     "category": "Tesla Overlays",
     "description": "Reboot to payloads from the Tesla.",
     "name": "Quick-Reboot overlay",
-    "repo": "sthetix/Quick-Reboot",
+    "repo": "eradicatinglove/Quick-Reboot",
     "source_type": "github_release"
   },
   "quickntp": {
@@ -436,14 +818,14 @@
       }
     ],
     "category": "Tesla Overlays",
-    "description": "sys-clk base files",
-    "name": "sys-clk base files",
+    "description": "sys-clk Base Files.",
+    "name": "sys-clk Base Files",
     "repo": "retronx-team/sys-clk",
     "source_type": "github_release"
   },
-  "sys_clk": {
+  "sys-clk-overlay": {
     "asset_info": {
-      "version": "2.0.1+r19"
+      "version": "2.0.1+r20"
     },
     "asset_patterns": [
       {
@@ -451,15 +833,35 @@
         "processing_steps": [
           {
             "action": "copy_file",
-            "target_path": "/switch/.overlays"
+            "target_path": "/switch/.overlays/"
           }
         ]
       }
     ],
     "category": "Tesla Overlays",
     "description": "Sysmodule for overclocking.",
-    "name": "sys-clk",
+    "name": "sys-clk Overlay",
     "repo": "ppkantorski/sys-clk",
+    "source_type": "github_release"
+  },
+  "sys_ftpd": {
+    "asset_info": {
+      "version": "recomp"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "sys-ftpd.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Patches",
+    "description": "A lightweight FTP server that runs in the background on your Nintendo Switch.",
+    "name": "sys_ftpd",
+    "repo": "auggeythecat/sys-ftpd-Recompiled",
     "source_type": "github_release"
   },
   "sys_patch": {
@@ -484,7 +886,7 @@
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.4.5"
+      "version": "v1.4.6"
     },
     "asset_patterns": [
       {
@@ -506,11 +908,54 @@
   },
   "tegraexplorer": {
     "asset_info": {
-      "version": "4.2.1"
+      "version": "4.2.0"
     },
     "asset_patterns": [
       {
-        "pattern": "TegraExplorer*.zip",
+        "pattern": "TegraExplorer.bin",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/bootloader/payloads/"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "default": false,
+    "description": "A payload-based file explorer.",
+    "name": "TegraExplorer",
+    "repo": "suchmememanyskill/TegraExplorer",
+    "source_type": "github_release"
+  },
+  "theme_injector": {
+    "asset_info": {
+      "version": "v4.8.3"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "NXThemesInstaller.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/NXThemesInstaller/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Install and manage Nintendo Switch themes.",
+    "name": "Switch Theme Injector",
+    "repo": "exelix11/SwitchThemeInjector",
+    "source_type": "github_release"
+  },
+  "tinfoil_applet": {
+    "asset_info": {
+      "version": "20.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "PackageManager-*-v*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -518,10 +963,33 @@
         ]
       }
     ],
-    "category": "Payloads",
-    "description": "A payload-based file explorer.",
-    "name": "TegraExplorer",
-    "repo": "sthetix/TegraExplorer",
+    "category": "Homebrew Apps",
+    "default": false,
+    "description": "Title manager. Uses less memory.",
+    "name": "Tinfoil Applet version",
+    "repo": "NexlifyHub/PackageManager",
+    "source_type": "github_release"
+  },
+  "tinfoil_nsp": {
+    "asset_info": {
+      "version": "20.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "PackageManager-*-v*.nsp",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/tinfoil/nsp/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "default": false,
+    "description": "Title manager self-installer.",
+    "name": "Tinfoil NSP version",
+    "repo": "NexlifyHub/PackageManager",
     "source_type": "github_release"
   },
   "tinwoo": {
@@ -547,15 +1015,18 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.2.2"
+      "version": "v2.2.6"
     },
     "asset_patterns": [
       {
-        "pattern": "ovlmenu.ovl",
+        "pattern": "sdout.zip",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/switch/.overlays/"
+            "action": "unzip_to_root"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/Ultrahand-Reload"
           }
         ]
       }
