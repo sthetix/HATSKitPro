@@ -230,6 +230,34 @@ class ComponentEditor:
                     pattern = asset_config.get('pattern', '')
                     item_id = self.gui.editor_assets_list.insert('', END, values=(pattern,))
                     self.temp_asset_configs[item_id] = asset_config
+
+                # Auto-select the first asset pattern (if any) and load its steps
+                asset_items = self.gui.editor_assets_list.get_children()
+                if asset_items:
+                    first_item = asset_items[0]
+                    self.gui.editor_assets_list.selection_set(first_item)
+                    self.gui.editor_assets_list.focus(first_item)
+                    self.selected_asset_item = first_item
+
+                    # Reuse the same logic as when the user clicks an asset
+                    # (assuming on_asset_selection_change is already bound)
+                    try:
+                        self.on_asset_selection_change(None)
+                    except AttributeError:
+                        # Fallback: load steps manually if the handler isn't present
+                        asset_config = self.temp_asset_configs.get(first_item, {})
+                        pattern_name = asset_config.get('pattern', '')
+                        self.gui.editor_steps_info.config(text=pattern_name)
+
+                        self.clear_steps_list()
+                        steps = asset_config.get('processing_steps', [])
+                        for step in steps:
+                            action = step.get('action', 'N/A')
+                            details = ', '.join(
+                                [f"{k}='{v}'" for k, v in step.items() if k != 'action']
+                            )
+                            display = f"{action}: {details}" if details else action
+                            self.gui.editor_steps_list.insert('', END, values=(display,))
             else:
                 # Single asset format - for backward compatibility
                 # Need to show the legacy pattern field and hide the multi-asset UI
