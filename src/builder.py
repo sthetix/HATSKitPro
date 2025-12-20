@@ -738,19 +738,6 @@ class PackBuilder:
             staging_dir.mkdir()
             log(f"Created temporary staging area: {staging_dir}")
 
-            # --- New Logic: Always extract local skeleton.zip first ---
-            skeleton_path = Path("assets/skeleton.zip")
-            if skeleton_path.exists():
-                log("▶ Processing base skeleton...")
-                try:
-                    with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
-                        zip_ref.extractall(staging_dir)
-                    log("  ✅ Skeleton extracted successfully.")
-                except Exception as e:
-                    log(f"  ❌ FAILED to extract skeleton.zip: {e}")
-            else:
-                log("⚠️ WARNING: assets/skeleton.zip not found. Pack may be incomplete.")
-
             for comp_id in selected_ids:
                 comp_data = self.gui.components_data.get(comp_id)
                 if not comp_data:
@@ -843,6 +830,19 @@ class PackBuilder:
                     self.gui.show_custom_info("Build Failed", "One or more components failed to download or process.\nThe ZIP file was not created.", parent=window, height=250)
                 ])
                 return
+
+            # --- New Logic: Always extract local skeleton.zip last ---
+            skeleton_path = Path("assets/skeleton.zip")
+            if skeleton_path.exists():
+                log("\n▶ Processing base skeleton...")
+                try:
+                    with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
+                        zip_ref.extractall(staging_dir)
+                    log("  ✅ Skeleton extracted successfully.")
+                except Exception as e:
+                    log(f"  ❌ FAILED to extract skeleton.zip: {e}")
+            else:
+                log("⚠️ WARNING: assets/skeleton.zip not found. Pack may be incomplete.")
 
             # --- Compute content hash AFTER all downloads are complete ---
             log("\n▶ Computing content hash from downloaded versions...")
