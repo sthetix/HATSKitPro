@@ -500,7 +500,11 @@ class HATSKitProGUI:
         ttk.Label(form, text="Source Information", font=('Segoe UI', 10, 'bold')).grid(row=5, column=0, columnspan=2, sticky=W, pady=5)
         
         ttk.Label(form, text="Source Type:", font=('Segoe UI', 9, 'bold')).grid(row=6, column=0, sticky=W, pady=5, padx=(0, 10))
-        self.editor_source_type = ttk.Combobox(form, values=["github_release", "direct_url"], state="readonly")
+        self.editor_source_type = ttk.Combobox(
+            form,
+            values=["github_release", "github_tag", "direct_url"],
+            state="readonly"
+        )
         self.editor_source_type.grid(row=6, column=1, sticky=EW, pady=5, padx=(0, 10))
 
         # --- Dynamic Source Fields ---
@@ -508,6 +512,10 @@ class HATSKitProGUI:
         self.editor_repo_label.grid(row=7, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_repo = ttk.Entry(form, width=40)
         self.editor_repo.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
+
+        # --- Tag field (github_tag only, always after repo) ---
+        self.editor_tag_label = ttk.Label(form, text="Tag:", font=('Segoe UI', 9, 'bold'))
+        self.editor_tag = ttk.Entry(form, width=40)
         
         # --- Single Asset Pattern (backward compatible) ---
         self.editor_pattern_label = ttk.Label(form, text="Asset Pattern:", font=('Segoe UI', 9, 'bold'))
@@ -545,14 +553,36 @@ class HATSKitProGUI:
 
         def update_source_fields(*args):
             source_type = self.editor_source_type.get()
-            if source_type == 'github_release':
-                self.editor_repo_label.grid()
-                self.editor_repo.grid()
+            # --- RESET VISIBILITY (minimal but required) ---
+            self.editor_repo_label.grid_remove()
+            self.editor_repo.grid_remove()
+            self.editor_tag_label.grid_remove()
+            self.editor_tag.grid_remove()
+            self.editor_pattern_label.grid_remove()
+            self.editor_pattern.grid_remove()
+            self.editor_assets_label.grid_remove()
+            self.editor_assets_frame.grid_remove()
+            self.editor_url_label.grid_remove()
+            self.editor_url.grid_remove()
+
+            if source_type in ('github_release', 'github_tag'):
+                # Repo
+                self.editor_repo_label.grid(row=7, column=0, sticky=W, pady=5, padx=(0, 10))
+                self.editor_repo.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
+
+                if source_type == 'github_tag':
+                    # Tag goes on row 8
+                    self.editor_tag_label.grid(row=8, column=0, sticky=W, pady=5, padx=(0, 10))
+                    self.editor_tag.grid(row=8, column=1, sticky=EW, pady=5, padx=(0, 10))
+                    assets_row = 9
+                else:
+                    assets_row = 8
+
                 # Show multi-asset UI by default for github_release
                 self.editor_pattern_label.grid_remove()
                 self.editor_pattern.grid_remove()
-                self.editor_assets_label.grid(row=8, column=0, sticky=NW, pady=5, padx=(0, 10))
-                self.editor_assets_frame.grid(row=8, column=1, sticky=EW, pady=5, padx=(0, 10))
+                self.editor_assets_label.grid(row=assets_row, column=0, sticky=NW, pady=5, padx=(0, 10))
+                self.editor_assets_frame.grid(row=assets_row, column=1, sticky=EW, pady=5, padx=(0, 10))
                 self.editor_url_label.grid_remove()
                 self.editor_url.grid_remove()
             elif source_type == 'direct_url':
@@ -568,22 +598,22 @@ class HATSKitProGUI:
         self.editor_source_type.bind('<<ComboboxSelected>>', update_source_fields)
 
         # Processing steps for selected asset pattern
-        ttk.Separator(form, orient=HORIZONTAL).grid(row=9, column=0, columnspan=2, sticky=EW, pady=10)
+        ttk.Separator(form, orient=HORIZONTAL).grid(row=10, column=0, columnspan=2, sticky=EW, pady=10)
         steps_header = ttk.Frame(form)
-        steps_header.grid(row=10, column=0, columnspan=2, sticky=EW, pady=5)
+        steps_header.grid(row=11, column=0, columnspan=2, sticky=EW, pady=5)
         ttk.Label(steps_header, text="Processing Steps for Selected Asset", font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
         self.editor_steps_info = ttk.Label(steps_header, text="(no asset selected)", font=('Segoe UI', 9), foreground='gray')
         self.editor_steps_info.pack(side=LEFT, padx=(10, 0))
 
         # Steps list
-        self.editor_steps_list = ttk.Treeview(form, height=5, columns=('action',), show='headings', bootstyle="primary")
+        self.editor_steps_list = ttk.Treeview(form, height=3, columns=('action',), show='headings', bootstyle="primary")
         self.editor_steps_list.heading('action', text='Action', anchor=CENTER)
         self.editor_steps_list.column('action', anchor=W)
-        self.editor_steps_list.grid(row=11, column=0, columnspan=2, sticky=EW, pady=5, padx=(0, 10))
+        self.editor_steps_list.grid(row=12, column=0, columnspan=2, sticky=EW, pady=5, padx=(0, 10))
 
         # Step management buttons
         add_step_frame = ttk.Frame(form)
-        add_step_frame.grid(row=12, column=0, columnspan=2, pady=(5, 0), sticky=W)
+        add_step_frame.grid(row=13, column=0, columnspan=2, pady=(5, 0), sticky=W)
         ttk.Button(add_step_frame, text="Add Step", bootstyle="success-outline", command=lambda: None).pack(side=LEFT, padx=2)
         ttk.Button(add_step_frame, text="Edit Step", bootstyle="info-outline", command=lambda: None).pack(side=LEFT, padx=2)
         ttk.Button(add_step_frame, text="Remove Step", bootstyle="danger-outline", command=lambda: None).pack(side=LEFT, padx=2)

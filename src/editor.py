@@ -177,6 +177,9 @@ class ComponentEditor:
         else:  # github_release
             self.gui.editor_repo.delete(0, END)
             self.gui.editor_repo.insert(0, comp_data.get('repo', ''))
+            # Tag field (used by github_tag, harmless for github_release)
+            self.gui.editor_tag.delete(0, END)
+            self.gui.editor_tag.insert(0, comp_data.get('tag', ''))
 
             # Check if multi-asset or single asset
             if 'asset_patterns' in comp_data:
@@ -347,6 +350,16 @@ class ComponentEditor:
             return
 
         source_type = self.gui.editor_source_type.get()
+        tag_value = self.gui.editor_tag.get().strip()
+
+        # Validation: Tag required for github_tag
+        if source_type == 'github_tag' and not tag_value:
+            self.gui.show_custom_info(
+                "Validation Error",
+                "Tag field cannot be empty when using GitHub Tag source."
+            )
+            comp_id_entry.config(state=DISABLED if not is_new_component else NORMAL)
+            return
 
         # Validation: Source type
         if not source_type:
@@ -418,8 +431,11 @@ class ComponentEditor:
             "asset_info": existing_asset_info
         }
 
+        if tag_value:
+            new_data["tag"] = tag_value
+
         # Handle asset patterns (multi-asset vs single-asset)
-        if source_type == 'github_release':
+        if source_type in ('github_release', 'github_tag'):
             asset_list_items = self.gui.editor_assets_list.get_children()
 
             if asset_list_items:

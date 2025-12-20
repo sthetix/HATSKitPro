@@ -1079,6 +1079,44 @@ class PackBuilder:
             except urllib.error.HTTPError as e:
                 log(f"  ❌ HTTP Error {e.code}: {e.reason}")
                 return None
+        elif source_type == "github_tag":
+            repo = comp_data.get("repo")
+            tag = comp_data.get("tag")
+            if not pattern:
+                pattern = comp_data.get("asset_pattern")
+
+            if not repo or not tag or not pattern:
+                log("  ❌ Invalid github_tag component configuration.")
+                return None
+
+            api_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
+            log(f"  Fetching tagged release: {tag}")
+
+            req = urllib.request.Request(api_url)
+            pat = self.gui.github_pat.get()
+            if pat:
+                req.add_header("Authorization", f"token {pat}")
+
+            try:
+                with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as response:
+                    release = json.loads(response.read().decode())
+
+                for asset in release.get("assets", []):
+                    if fnmatch.fnmatch(asset["name"].lower(), pattern.lower()):
+                        url = asset["browser_download_url"]
+                        filename = Path(temp_dir) / asset["name"]
+
+                        log(f"  Downloading: {url}")
+                        if self._download_file_with_progress(url, filename, log):
+                            log(f"  ✅ Downloaded to: {filename.name}")
+                            return filename
+
+                log(f"  ❌ Asset matching '{pattern}' not found in tag {tag}")
+                return None
+
+            except Exception as e:
+                log(f"  ❌ Failed to fetch github tag '{tag}': {e}")
+                return None
         elif source_type == 'direct_url':
             url = comp_data.get('repo')  # For direct_url, the URL is stored in 'repo' field
             if not url:
