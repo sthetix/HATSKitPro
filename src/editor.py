@@ -50,8 +50,14 @@ class ComponentEditor:
                         child.config(command=self.delete_component)
                     elif text == "Save Changes":
                         child.config(command=self.save_changes)
+                    elif text == "Add Step":
+                        child.config(command=self.add_step)
+                    elif text == "Edit Step":
+                        child.config(command=self.edit_step)
+                    elif text == "Remove Step":
+                        child.config(command=self.remove_step)
                 find_buttons(child)
-        
+
         find_buttons(self.gui.editor_tab)
 
         # Find the assets button frame and add buttons vertically
@@ -172,8 +178,43 @@ class ComponentEditor:
 
         # Populate source fields based on type
         if source_type == 'direct_url':
+            url = comp_data.get('repo', '')
             self.gui.editor_url.delete(0, END)
-            self.gui.editor_url.insert(0, comp_data.get('repo', ''))
+            self.gui.editor_url.insert(0, url)
+
+            # ---- Treat direct_url as a single implicit asset ----
+            steps = comp_data.get('processing_steps', [])
+            pattern_value = comp_data.get('asset_pattern', url)
+
+            # Clear asset UI and temp storage
+            self.gui.editor_assets_list.delete(*self.gui.editor_assets_list.get_children())
+            self.temp_asset_configs.clear()
+
+            # Create virtual asset entry
+            asset_config = {
+                'pattern': pattern_value,
+                'processing_steps': steps
+            }
+
+            item_id = self.gui.editor_assets_list.insert('', END, values=(pattern_value,))
+            self.temp_asset_configs[item_id] = asset_config
+
+            # Auto-select it
+            self.gui.editor_assets_list.selection_set(item_id)
+            self.gui.editor_assets_list.focus(item_id)
+            self.selected_asset_item = item_id
+
+            # Load steps into UI
+            self.clear_steps_list()
+            self.gui.editor_steps_info.config(text=pattern_value or "(direct_url)")
+            for step in steps:
+                action = step.get('action', 'N/A')
+                details = ', '.join(
+                    [f"{k}='{v}'" for k, v in step.items() if k != 'action']
+                )
+                display = f"{action}: {details}" if details else action
+                self.gui.editor_steps_list.insert('', END, values=(display,))
+
         else:  # github_release
             self.gui.editor_repo.delete(0, END)
             self.gui.editor_repo.insert(0, comp_data.get('repo', ''))
