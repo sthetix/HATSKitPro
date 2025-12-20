@@ -1342,23 +1342,54 @@ class PackBuilder:
                     log("    ❌ 'find_and_copy' is missing 'source_file_pattern'.")
                     continue
 
-                # Unzip to a temporary location to search inside
+                # Extract ZIP to temp directory to inspect contents
                 with tempfile.TemporaryDirectory(dir=asset_path.parent) as extract_dir:
+                    extract_dir_path = Path(extract_dir)
+
                     with zipfile.ZipFile(asset_path, 'r') as zip_ref:
-                        zip_ref.extractall(extract_dir)
-                    
-                    found = False
-                    for f in Path(extract_dir).rglob(pattern):
+                        zip_ref.extractall(extract_dir_path)
+
+                        # Track newest file per filename
+                        newest_by_name = {}
+
+                        for f in extract_dir_path.rglob(pattern):
+                            zip_path = f.relative_to(extract_dir_path).as_posix()
+
+                            try:
+                                info = zip_ref.getinfo(zip_path)
+                                # ZipInfo.date_time = (Y, M, D, H, M, S)
+                                mtime = datetime.datetime(*info.date_time).timestamp()
+                            except KeyError:
+                                # Fallback to filesystem mtime
+                                try:
+                                    mtime = f.stat().st_mtime
+                                except OSError:
+                                    continue
+
+                            current = newest_by_name.get(f.name)
+                            if current is None or mtime > current[1]:
+                                newest_by_name[f.name] = (f, mtime)
+
+                    if not newest_by_name:
+                        log(f"    ⚠️ Could not find file matching '{pattern}' in the archive.")
+                    else:
                         target_folder = staging_dir / target_folder_str
                         target_folder.mkdir(parents=True, exist_ok=True)
-                        new_path = target_folder / f.name
-                        shutil.copy(str(f), new_path)
-                        all_processed_files.append(new_path)
-                        log(f"    ✅ Found and copied '{f.name}' to '{new_path.relative_to(staging_dir)}'")
-                        found = True
-                    
-                    if not found:
-                        log(f"    ⚠️ Could not find file matching '{pattern}' in the archive.")
+
+                        for fname, (src_path, _) in newest_by_name.items():
+                            dest = target_folder / fname
+
+                            if src_path.is_dir():
+                                shutil.copytree(src_path, dest, dirs_exist_ok=True)
+                                for f in dest.rglob('*'):
+                                    if f.is_file():
+                                        all_processed_files.append(f)
+                                log(f"    ✅ Copied directory '{fname}' to '{dest.relative_to(staging_dir)}'")
+                            else:
+                                shutil.copy(src_path, dest)
+                                all_processed_files.append(dest)
+                                log(f"    ✅ Copied newest '{fname}' to '{dest.relative_to(staging_dir)}'")
+
             elif action == 'unzip_subfolder_to_root':
                 with zipfile.ZipFile(asset_path, 'r') as zip_ref:
                     # Automatically find the single top-level directory
