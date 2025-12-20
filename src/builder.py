@@ -1391,6 +1391,48 @@ class PackBuilder:
                                 log(f"    ✅ Copied newest '{fname}' to '{dest.relative_to(staging_dir)}'")
 
             elif action == 'unzip_subfolder_to_root':
+                subfolder_name = step.get('subfolder_name', '').strip('/')
+
+                with zipfile.ZipFile(asset_path, 'r') as zip_ref:
+                    if subfolder_name:
+                        source_folder = subfolder_name.rstrip('/') + '/'
+                        log(f"    🔍 Using specified source folder: '{subfolder_name}'")
+                    else:
+                        # Auto-detect single top-level directory
+                        top_level_dirs = {name.split('/')[0] for name in zip_ref.namelist() if '/' in name}
+
+                        if len(top_level_dirs) == 1:
+                            source_folder = top_level_dirs.pop() + '/'
+                            log(f"    ✅ Auto-detected source folder: '{source_folder.strip('/')}'")
+                        elif len(top_level_dirs) == 0:
+                            log("    ❌ 'unzip_subfolder_to_root' failed: No subfolders found in the archive.")
+                            continue
+                        else:
+                            log(
+                                "    ❌ 'unzip_subfolder_to_root' failed: "
+                                f"Multiple root folders found ({', '.join(top_level_dirs)}). "
+                                "Specify 'subfolder_name'."
+                            )
+                            continue
+
+                    extracted = False
+
+                    for member in zip_ref.infolist():
+                        if member.filename.startswith(source_folder):
+                            target_path = member.filename[len(source_folder):]
+                            if not target_path:
+                                continue
+
+                            member.filename = target_path
+                            zip_ref.extract(member, staging_dir)
+
+                            if not member.is_dir():
+                                all_processed_files.append(staging_dir / target_path)
+                                extracted = True
+
+                    if not extracted:
+                        log(f"    ⚠️ No files extracted from '{source_folder}'")
+
                 with zipfile.ZipFile(asset_path, 'r') as zip_ref:
                     # Automatically find the single top-level directory
                     top_level_dirs = {name.split('/')[0] for name in zip_ref.namelist() if '/' in name}
