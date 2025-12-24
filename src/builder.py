@@ -20,6 +20,7 @@ import fnmatch
 import re
 import ssl
 import certifi
+import concurrent.futures
 
 # Global SSL context using certifi CA bundle (macOS fix)
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
@@ -534,146 +535,146 @@ class PackBuilder:
         thread.start()
 
     def _worker_fetch_versions(self, window, log_widget, progress_bar, close_button, selected_ids):
-        """Worker thread to fetch versions from GitHub API for selected components."""
         def log(message):
-            log_widget.config(state='normal')
-            log_widget.insert(END, message + "\n")
-            log_widget.see(END)
-            log_widget.config(state='disabled')
-            log_widget.update_idletasks()
+            try:
+                if not log_widget.winfo_exists(): return
+                log_widget.config(state='normal')
+                log_widget.insert(END, message + "\n")
+                log_widget.see(END)
+                log_widget.config(state='disabled')
+                log_widget.update_idletasks()
+            except Exception:
+                pass
+
+        # Prepare list of tasks
+        tasks = []
+        for cid in selected_ids:
+            cdata = self.gui.components_data.get(cid)
+            if not cdata: continue
+            # Skip manual versions (no need to fetch)
+            if cid in self.gui.manual_versions:
+                continue
+            tasks.append((cid, cdata))
+
+        total_tasks = len(tasks)
+        log(f"Fetching versions for {total_tasks} components...")
 
         updated_count = 0
         failed_count = 0
+        completed_tasks = 0
 
-        # Only check selected GitHub release components
-        components_to_check = []
-        direct_url_components = []
-        other_skipped_components = []
-        manual_version_components = []
+        # Define the single fetch operation
+        def fetch_single(cid, cdata):
+            try:
+                source_type = cdata.get('source_type')
 
-        for cid in selected_ids:
-            cdata = self.gui.components_data.get(cid)
-            if not cdata:
-                continue
+                # 1. Direct URL Strategy
+                if source_type == 'direct_url':
+                    url = cdata.get('repo', '')
+                    if url:
+                        # Try to extract version from URL string first (fastest)
+                        version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
+                        if version_match:
+                            return cid, version_match.group(1), None
+                    return cid, None, "No version in URL"
 
-            # Skip components with manual versions
-            if cid in self.gui.manual_versions:
-                manual_version_components.append((cid, cdata))
-                continue
+                # 2. GitHub Release Strategy (Finds latest)
+                elif source_type == 'github_release' and cdata.get('repo'):
+                    repo = cdata['repo']
+                    api_url = f"https://api.github.com/repos/{repo}/releases?per_page=1"
 
-            source_type = cdata.get('source_type')
+                    req = urllib.request.Request(api_url)
+                    req.add_header('Accept', 'application/vnd.github.v3+json')
+                    req.add_header('User-Agent', 'HATSKit-Pro')
 
-            if source_type == 'direct_url':
-                direct_url_components.append((cid, cdata))
-            elif source_type == 'github_release' and cdata.get('repo'):
-                components_to_check.append((cid, cdata))
-            else:
-                other_skipped_components.append((cid, cdata))
+                    pat = self.gui.github_pat.get()
+                    if pat:
+                        req.add_header('Authorization', f'token {pat}')
 
-        if len(manual_version_components) > 0:
-            log(f"Skipped {len(manual_version_components)} components with manual versions set:")
-            for cid, cdata in manual_version_components:
-                manual_ver = self.gui.manual_versions.get(cid, "")
-                log(f"  - {cdata.get('name', cid)}: {manual_ver} (manual)")
+                    with urllib.request.urlopen(req, timeout=10, context=SSL_CONTEXT) as response:
+                        if response.status == 200:
+                            data = json.loads(response.read().decode())
+                            if data and isinstance(data, list):
+                                latest = max(data, key=lambda r: r.get("published_at", ""))
+                                return cid, latest.get("tag_name"), None
+                            return cid, None, "No releases found"
+                        else:
+                            return cid, None, f"HTTP {response.status}"
 
-        log(f"\nFound {len(components_to_check)} GitHub components to fetch...")
+                # 3. GitHub Tag Strategy (Pinned Version) [OPTIMIZED FEATURE]
+                elif source_type == 'github_tag':
+                    # For pinned tags, the "latest" version is simply the tag itself.
+                    # We return it directly without an API call.
+                    tag = cdata.get('tag')
+                    if tag:
+                        return cid, tag, None
+                    return cid, None, "Missing 'tag' in config"
 
-        # Process direct URL components to extract versions from URLs
-        if len(direct_url_components) > 0:
-            log(f"\nProcessing {len(direct_url_components)} direct URL components...")
-            for cid, cdata in direct_url_components:
-                url = cdata.get('repo', '')
-                log(f"Checking: {cdata.get('name', cid)}")
+                return cid, None, f"Skipped/Unknown Type: {source_type}"
 
-                if url:
-                    # Extract version from URL
-                    version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
-                    if version_match:
-                        extracted_version = version_match.group(1)
-                        log(f"  -> Extracted version from URL: {extracted_version}")
+            except urllib.error.HTTPError as e:
+                if e.code == 403:
+                    return cid, None, "RATE LIMIT EXCEEDED (Use a PAT)"
+                return cid, None, f"HTTP {e.code}"
+            except Exception as e:
+                return cid, None, str(e)
 
-                        # Store the version in asset_info
-                        if 'asset_info' not in self.gui.components_data[cid]:
-                            self.gui.components_data[cid]['asset_info'] = {}
-                        self.gui.components_data[cid]['asset_info']['version'] = extracted_version
+        # Execute in parallel (Max 5 workers)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+            future_to_cid = {executor.submit(fetch_single, cid, cdata): (cid, cdata) for cid, cdata in tasks}
+
+            for future in concurrent.futures.as_completed(future_to_cid):
+                if not window.winfo_exists():
+                    executor.shutdown(wait=False)
+                    break
+
+                cid, cdata = future_to_cid[future]
+                try:
+                    res_cid, version, error = future.result()
+
+                    if version:
+                        log(f"  ✅ {cdata['name']}: {version}")
+                        if 'asset_info' not in self.gui.components_data[res_cid]:
+                            self.gui.components_data[res_cid]['asset_info'] = {}
+                        self.gui.components_data[res_cid]['asset_info']['version'] = version
                         updated_count += 1
                     else:
-                        log(f"  -> Could not extract version from URL: {url}")
+                        log(f"  ❌ {cdata['name']}: {error}")
                         failed_count += 1
-                else:
-                    log(f"  -> No URL found for component")
+
+                except Exception as exc:
+                    log(f"  ❌ {cdata['name']}: Exception {exc}")
                     failed_count += 1
 
-        if len(other_skipped_components) > 0:
-            log(f"\nSkipped {len(other_skipped_components)} other non-GitHub components")
+                completed_tasks += 1
+                if total_tasks > 0:
+                    try:
+                        progress_bar.configure(mode='determinate', value=(completed_tasks/total_tasks)*100)
+                    except: pass
 
-        for comp_id, comp_data in components_to_check:
-            repo = comp_data['repo']
-            # Fetch the list of releases. The first one is always the newest.
-            api_url = f"https://api.github.com/repos/{repo}/releases?per_page=5"
-            log(f"Checking: {comp_data['name']} ({repo})")
-
-            try:
-                req = urllib.request.Request(api_url)
-                req.add_header('Accept', 'application/vnd.github.v3+json')
-                pat = self.gui.github_pat.get()
-                if pat:
-                    req.add_header('Authorization', f'token {pat}')
-
-                with urllib.request.urlopen(req, timeout=10) as response:
-                    if response.status == 200:
-                        releases = json.loads(response.read().decode())
-                        if releases:
-                            latest_release = max(
-                                releases,
-                                key=lambda r: r.get("published_at", "")
-                            )
-                            latest_version = latest_release.get("tag_name")
-
-                            if latest_version:
-                                log(f"  -> Found latest version: {latest_version}")
-                                # Create asset_info dict if it doesn't exist
-                                if 'asset_info' not in self.gui.components_data[comp_id]:
-                                    self.gui.components_data[comp_id]['asset_info'] = {}
-                                self.gui.components_data[comp_id]['asset_info']['version'] = latest_version
-                                updated_count += 1
-                            else:
-                                log(f"  -> No version tag found in the latest release.")
-                                failed_count += 1
-                        else:
-                            log(f"  -> No releases found for repository.")
-                            failed_count += 1
-                    else:
-                        log(f"  -> FAILED: HTTP {response.status}")
-                        failed_count += 1
-            except Exception as e:
-                log(f"  -> ERROR: {e}")
-                failed_count += 1
-
-        total_skipped = len(other_skipped_components) + len(manual_version_components)
-
-        log("\n" + "="*30)
-        log("Fetch complete!")
-        log(f"Updated: {updated_count} | Failed: {failed_count} | Skipped: {total_skipped}")
-        if len(manual_version_components) > 0:
-            log(f"  (includes {len(manual_version_components)} with manual versions)")
-
-        # Stop progress and re-enable button from the main thread
-        summary = f"Finished checking versions.\nUpdated: {updated_count}\nFailed: {failed_count}"
-        if total_skipped > 0:
-            summary += f"\nSkipped: {total_skipped} (other components)"
-
-        # Save components.json if versions were updated
         if updated_count > 0:
             self.gui.save_components_file()
 
-        self.gui.root.after(100, lambda: [
-            progress_bar.stop(),
-            self.fetch_button.config(state=NORMAL),
-            close_button.config(state=NORMAL),
-            self.update_builder_preview(), # Update the preview to show new versions
-            self.gui.show_custom_info("Fetch Complete", summary, parent=window, height=230)
-        ])
+        def on_complete():
+            if self.fetch_button:
+                try: self.fetch_button.config(state=NORMAL)
+                except: pass
+
+            self.filter_builder_components()
+
+            if window.winfo_exists():
+                try:
+                    progress_bar.stop()
+                    close_button.config(state=NORMAL)
+
+                    msg = f"Updated: {updated_count}\nFailed: {failed_count}"
+                    if failed_count > 0 and not self.gui.github_pat.get():
+                        msg += "\n\nTip: Failures may be due to GitHub API rate limits.\nConsider adding a PAT in Settings."
+
+                    self.gui.show_custom_info("Fetch Complete", msg, parent=window, height=280)
+                except: pass
+
+        self.gui.root.after(100, on_complete)
 
     def show_build_progress(self, selected, output_file, build_comment=""):
         """Show build progress window"""
@@ -705,275 +706,253 @@ class PackBuilder:
         thread.start()
 
     def _worker_build_pack(self, selected_ids, output_file, window, log_widget, progress_bar, close_button, build_comment=""):
-        """Worker thread to build the HATS pack."""
+        """Worker thread to build the HATS pack (Parallel Version)."""
+
+        # Thread-safe logging helper
         def log(message):
-            log_widget.config(state='normal')
-            log_widget.insert(END, message + "\n")
-            log_widget.see(END)
-            log_widget.config(state='disabled')
-            log_widget.update_idletasks()
+            try:
+                if not log_widget.winfo_exists(): return
+                log_widget.config(state='normal')
+                log_widget.insert(END, message + "\n")
+                log_widget.see(END)
+                log_widget.config(state='disabled')
+                log_widget.update_idletasks()
+            except Exception:
+                pass
 
-        def update_progress(value):
-            progress_bar['value'] = value
-            progress_bar.update_idletasks()
+        def update_progress(value, mode='determinate'):
+            try:
+                if window.winfo_exists():
+                    progress_bar.configure(mode=mode, value=value)
+            except: pass
 
-        total_steps = len(selected_ids) + 2 # (download/process per component + manifest + zip)
-        current_step = 0
-        any_component_failed = False # Flag to track if any component fails
+        # Initialize
+        total_components = len(selected_ids)
+        download_results = {}
+        failed_components = []
 
-        # Check if we should inherit firmware info from last build
         last_build_fw = self.gui.last_build_data.get('supported_firmware', 'N/A')
-
         manifest = {
             "pack_name": Path(output_file).name,
             "build_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
             "builder_version": self.gui.VERSION,
-            "supported_firmware": last_build_fw,  # Inherit from last build initially
-            "content_hash": "pending",            # Will be computed after downloads
+            "supported_firmware": last_build_fw,
+            "content_hash": "pending",
             "components": {}
         }
 
         with tempfile.TemporaryDirectory() as temp_dir:
+            download_dir = Path(temp_dir) / "downloads"
             staging_dir = Path(temp_dir) / "staging"
+            download_dir.mkdir()
             staging_dir.mkdir()
-            log(f"Created temporary staging area: {staging_dir}")
 
-            for comp_id in selected_ids:
+            # --- PHASE 1: PARALLEL DOWNLOADS ---
+            log(f"--- PHASE 1: Downloading {total_components} Components ---")
+            log("(Please wait, this may take a moment based on your internet speed...)\n")
+            update_progress(0, 'indeterminate')
+
+            def download_single_component(comp_id):
                 comp_data = self.gui.components_data.get(comp_id)
-                if not comp_data:
-                    log(f"❌ ERROR: Component '{comp_id}' not found in definitions. Skipping.")
-                    any_component_failed = True
-                    break
+                if not comp_data: return False, "Definition not found"
 
-                # Check for manual version first, otherwise use fetched version
+                # Version logic
                 manual_version = self.gui.manual_versions.get(comp_id, "")
-                if manual_version:
-                    version_to_build = manual_version
-                    log(f"\n▶ Processing: {comp_data['name']} ({version_to_build}) [MANUAL]")
-                else:
-                    version_to_build = comp_data.get('asset_info', {}).get('version', 'N/A')
-                    log(f"\n▶ Processing: {comp_data['name']} ({version_to_build})")
+                version_to_build = manual_version if manual_version else comp_data.get('asset_info', {}).get('version', 'N/A')
 
-                # Get asset configurations (handles both single and multiple assets)
+                log(f"⏳ [{comp_data['name']}] Downloading ({version_to_build})...")
+
                 asset_configs = self._get_asset_configs(comp_data)
+                if not asset_configs: return False, "No asset patterns defined"
 
-                if not asset_configs:
-                    log(f"  ❌ No asset patterns defined. Skipping component.")
-                    any_component_failed = True
-                    break
+                downloaded_assets = []
+
+                # Silent logger for parallel threads to avoid clutter
+                def silent_log(msg):
+                    if any(x in msg for x in ["❌", "⚠️", "Error", "Failed", "HTTP"]):
+                        log(f"  [{comp_data['name']}] {msg.strip()}")
+
+                for asset_config in asset_configs:
+                    try:
+                        asset_path = self._download_asset(
+                            comp_data,
+                            download_dir,
+                            silent_log,
+                            pattern=asset_config.get('pattern'),
+                            version=version_to_build
+                        )
+
+                        if not asset_path: return False, "Download failed (check log)"
+                        downloaded_assets.append((asset_path, asset_config.get('processing_steps', [])))
+
+                    except Exception as e:
+                        return False, f"Exception: {e}"
+
+                total_size_mb = sum(p[0].stat().st_size for p in downloaded_assets) / (1024*1024)
+                log(f"✅ [{comp_data['name']}] Ready ({total_size_mb:.2f} MB)")
+
+                return True, {
+                    'comp_id': comp_id,
+                    'comp_data': comp_data,
+                    'version': version_to_build,
+                    'assets': downloaded_assets
+                }
+
+            # Execute Parallel Downloads [NEW FEATURE]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                future_to_id = {executor.submit(download_single_component, cid): cid for cid in selected_ids}
+
+                completed_downloads = 0
+                for future in concurrent.futures.as_completed(future_to_id):
+                    if not window.winfo_exists():
+                        executor.shutdown(wait=False)
+                        return
+
+                    cid = future_to_id[future]
+                    try:
+                        success, result = future.result()
+                        if success:
+                            download_results[cid] = result
+                        else:
+                            failed_components.append((cid, result))
+                    except Exception as e:
+                        failed_components.append((cid, str(e)))
+
+                    completed_downloads += 1
+                    update_progress((completed_downloads / total_components) * 40, 'determinate')
+
+            if failed_components:
+                log("\n❌ Critical Download Errors:")
+                for cid, err in failed_components:
+                    name = self.gui.components_data.get(cid, {}).get('name', cid)
+                    log(f"  • {name}: {err}")
+                self.gui.root.after(100, lambda: [close_button.config(state=NORMAL), self.gui.show_custom_info("Build Failed", "Downloads failed.", parent=window)])
+                return
+
+            # --- PHASE 2: SEQUENTIAL PROCESSING ---
+            log(f"\n\n--- PHASE 2: Processing & Extracting ---")
+
+            current_step = 0
+            for comp_id in selected_ids:
+                if not window.winfo_exists(): return
+                result = download_results.get(comp_id)
+                if not result: continue
+
+                comp_data = result['comp_data']
+                log(f"\n⚙️ {comp_data['name']}")
 
                 all_component_files = []
                 component_failed = False
 
-                # Process each asset (may be one or multiple)
-                for idx, asset_config in enumerate(asset_configs, 1):
-                    asset_pattern = asset_config.get('pattern')
-                    asset_processing_steps = asset_config.get('processing_steps', [])
-
-                    if len(asset_configs) > 1:
-                        log(f"  → Asset {idx}/{len(asset_configs)}: {asset_pattern}")
-
-                    # 1. Download asset
+                for asset_path, steps in result['assets']:
                     try:
-                        asset_path = self._download_asset(comp_data, Path(temp_dir), log, pattern=asset_pattern, version=version_to_build)
-                        if not asset_path:
-                            log(f"  ❌ FAILED to download '{asset_pattern}'. Skipping this asset.")
-                            component_failed = True
-                            break
-                    except Exception as e:
-                        log(f"  ❌ FAILED during download of '{asset_pattern}': {e}")
-                        component_failed = True
-                        break
+                        indent_log = lambda m: log(f"   {m.strip()}")
+                        processed_files = self._process_asset(asset_path, comp_data, staging_dir, indent_log, processing_steps=steps)
 
-                    # 2. Process asset
-                    try:
-                        processed_files = self._process_asset(asset_path, comp_data, staging_dir, log, processing_steps=asset_processing_steps)
                         if processed_files is None:
-                            log(f"  ❌ FAILED during processing of '{asset_pattern}'.")
                             component_failed = True
                             break
                         all_component_files.extend(processed_files)
                     except Exception as e:
-                        log(f"  ❌ FAILED during processing of '{asset_pattern}': {e}")
+                        log(f"   ❌ Error: {e}")
                         component_failed = True
                         break
 
                 if component_failed:
-                    log(f"  ❌ Component '{comp_data['name']}' failed. Halting build.")
-                    any_component_failed = True
-                    break # Exit the main component loop
+                    self.gui.root.after(100, lambda: [close_button.config(state=NORMAL), self.gui.show_custom_info("Error", f"Failed to process {comp_data['name']}", parent=window)])
+                    return
 
-                # Add to manifest
+                # Add to Manifest
                 manifest['components'][comp_id] = {
                     "name": comp_data['name'],
-                    "version": version_to_build,
+                    "version": result['version'],
                     "category": comp_data.get('category', 'Unknown'),
                     "repo": comp_data.get('repo', ''),
                     "files": [str(p.relative_to(staging_dir)).replace('\\', '/') for p in all_component_files]
                 }
 
-                # 3. If this is Atmosphere, fetch firmware support info
                 if comp_id == "atmosphere":
-                    log(f"\n▶ Scanning Atmosphere release for firmware support info...")
-                    firmware_ver, _ = self.get_atmosphere_firmware_info(version_to_build, log)
-                    manifest['supported_firmware'] = firmware_ver
+                    firmware_ver, _ = self.get_atmosphere_firmware_info(result['version'], lambda m: None)
+                    if firmware_ver != "N/A": manifest['supported_firmware'] = firmware_ver
 
                 current_step += 1
-                update_progress((current_step / total_steps) * 100)
+                update_progress(40 + ((current_step / total_components) * 50))
 
-            # --- Halt build if any component failed ---
-            if any_component_failed:
-                log("\n\n❌ Build failed because one or more components could not be processed.")
-                log("The pack was not created. Please review the errors above.")
-                self.gui.root.after(100, lambda: [
-                    close_button.config(state=NORMAL),
-                    self.gui.show_custom_info("Build Failed", "One or more components failed to download or process.\nThe ZIP file was not created.", parent=window, height=250)
-                ])
-                return
+            # --- PHASE 3: FINALIZING ---
+            log("\n\n--- PHASE 3: Finalizing Pack ---")
 
-            # --- New Logic: Always extract local skeleton.zip last ---
             skeleton_path = Path("assets/skeleton.zip")
             if skeleton_path.exists():
-                log("\n▶ Processing base skeleton...")
-                try:
-                    with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
-                        zip_ref.extractall(staging_dir)
-                    log("  ✅ Skeleton extracted successfully.")
-                except Exception as e:
-                    log(f"  ❌ FAILED to extract skeleton.zip: {e}")
-            else:
-                log("⚠️ WARNING: assets/skeleton.zip not found. Pack may be incomplete.")
+                log("📦 Adding base skeleton...")
+                with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
+                    zip_ref.extractall(staging_dir)
 
-            # --- Compute content hash AFTER all downloads are complete ---
-            log("\n▶ Computing content hash from downloaded versions...")
-            selected_components = {comp_id: self.gui.components_data[comp_id] for comp_id in selected_ids if comp_id in self.gui.components_data}
-            content_hash = self.compute_content_hash(selected_components)
-            manifest['content_hash'] = content_hash
-            log(f"  ✅ Content hash: {content_hash}")
+            log("📝 Generating manifest and summary...")
+            selected_components = {cid: self.gui.components_data[cid] for cid in selected_ids}
+            manifest['content_hash'] = self.compute_content_hash(selected_components)
 
-            # --- Determine final filename with correct hash ---
-            now = datetime.datetime.now(datetime.timezone.utc)
-            date_str = now.strftime("%d%m%Y")
-            final_base_name = f"HATS-{date_str}-{content_hash}"
-
-            # Determine the final output path
+            final_base_name = f"HATS-{datetime.datetime.now().strftime('%d%m%Y')}-{manifest['content_hash']}"
             output_path = Path(output_file)
             final_output_file = output_path.parent / f"{final_base_name}.zip"
-
-            # Update manifest with the correct pack name
             manifest['pack_name'] = f"{final_base_name}.zip"
 
-            # --- Generate metadata files ---
-
-            # 3. Create manifest
-            log("\n▶ Generating manifest.json...")
             manifest_path = staging_dir / "manifest.json"
             with open(manifest_path, 'w', encoding='utf-8') as f:
                 json.dump(manifest, f, indent=2)
-            log("  ✅ Manifest created.")
-            current_step += 1
-            update_progress((current_step / total_steps) * 100)
 
-            # 4. Create ZIP file
-            log("\n▶ Creating ZIP archive...")
+            self._generate_metadata_file(staging_dir, final_base_name, manifest, build_comment)
+
+            log(f"💾 Compressing to {final_base_name}.zip...")
+            update_progress(95)
             try:
-                # --- Generate the single metadata .txt file ---
-                metadata_path = staging_dir / f"{final_base_name}.txt"
-                log(f"▶ Generating {metadata_path.name}...")
-                last_build_components = self.gui.last_build_data.get('components', {})
-
-                with open(metadata_path, 'w', encoding='utf-8') as f:
-                    # Header
-                    f.write("# HATS Pack Summary\n\n")
-
-                    # Metadata section with markdown formatting
-                    f.write(f"**Generated on:** {datetime.datetime.now(datetime.timezone.utc).strftime('%d-%m-%Y %H:%M:%S')} UTC  \n")
-                    f.write(f"**Builder Version:** {manifest.get('builder_version', self.gui.VERSION)}-GUI  \n")
-
-                    # Add content hash if available
-                    if manifest.get('content_hash') and manifest['content_hash'] != "N/A":
-                        f.write(f"**Content Hash:** {manifest['content_hash']}  \n")
-
-                    # Add supported firmware info
-                    supported_fw = manifest.get('supported_firmware', 'N/A')
-                    if supported_fw != "N/A":
-                        f.write(f"**Supported Firmware:** Up to {supported_fw}  \n")
-
-                    f.write("\n---\n\n")
-
-                    # Changelog section
-                    version_changes = []
-                    for comp_id, comp_data in manifest['components'].items():
-                        last_comp = last_build_components.get(comp_id)
-                        # Only show version changes, not newly added/removed components
-                        if last_comp and last_comp.get('version') != comp_data['version']:
-                            version_changes.append(f"- **{comp_data['name']}:** {last_comp.get('version')} → **{comp_data['version']}**")
-
-                    if version_changes or build_comment:
-                        f.write("## CHANGELOG (What's New Since Last Build)\n\n")
-                        if build_comment:
-                            f.write(f"### Build Notes:\n{build_comment}\n\n")
-                        if version_changes:
-                            f.write("### Version Updates:\n")
-                            for change in version_changes:
-                                f.write(f"{change}\n")
-                        f.write("\n---\n\n")
-
-                    # --- Included Components Section ---
-                    f.write("## INCLUDED COMPONENTS\n")
-
-                    # Group components by category
-                    components_by_category = {}
-                    for comp_id, comp_data in manifest['components'].items():
-                        category = comp_data.get('category', 'Uncategorized')
-                        if category not in components_by_category:
-                            components_by_category[category] = []
-                        components_by_category[category].append(comp_data)
-
-                    for category, components in sorted(components_by_category.items()):
-                        f.write(f"\n### {category.upper()}\n")
-                        for comp in sorted(components, key=lambda x: x['name']):
-                            # Extract owner/repo from repo field
-                            repo_info = comp.get('repo', '')
-                            if repo_info:
-                                f.write(f"- **{comp['name']}** ({comp['version']}) - {repo_info}\n")
-                            else:
-                                f.write(f"- **{comp['name']}** ({comp['version']})\n")
-
-                    # Footer
-                    f.write("\n---\n\n")
-                    f.write("<sub>Generated with HATSKit Pro Builder</sub>\n")
-
-                log(f"  ✅ {metadata_path.name} created.")
-
                 with zipfile.ZipFile(final_output_file, 'w', zipfile.ZIP_DEFLATED) as zipf:
                     for file_path in staging_dir.rglob('*'):
                         arcname = file_path.relative_to(staging_dir)
                         zipf.write(file_path, arcname)
-                log(f"  ✅ Pack saved to: {final_output_file}")
             except Exception as e:
-                log(f"  ❌ FAILED to create ZIP: {e}")
+                log(f"❌ ZIP Error: {e}")
                 self.gui.root.after(100, lambda: close_button.config(state=NORMAL))
                 return
 
-            current_step += 1
             update_progress(100)
-
-            # 5. Save local manifest.json (for last build reference)
             self.gui.last_build_data = manifest
             try:
                 with open(self.gui.MANIFEST_FILE, 'w', encoding='utf-8') as f:
                     json.dump(manifest, f, indent=2)
-                log("  ✅ Updated local manifest.json (last build reference).")
-            except Exception as e:
-                log(f"  ⚠️ Could not save local manifest.json: {e}")
+            except: pass
 
         log("\n🎉 Build complete!")
         self.gui.root.after(100, lambda: [
             close_button.config(state=NORMAL),
             self.gui.prepare_for_install(str(final_output_file)),
-            self.gui.show_custom_info("Build Complete", f"HATS Pack successfully built!\n\nSaved to:\n{final_output_file}\n\nThe Manager tab is now ready for installation.", parent=window, height=320)
+            self.gui.show_custom_info("Build Complete", f"HATS Pack successfully built!\n\nSaved to:\n{final_output_file}", parent=window, height=320)
         ])
+
+    def _generate_metadata_file(self, staging_dir, base_name, manifest, comment):
+        """Generate a readable text file with pack details"""
+        info_path = staging_dir / "pack_info.txt"
+
+        try:
+            with open(info_path, 'w', encoding='utf-8') as f:
+                f.write(f"HATS Pack Info\n")
+                f.write(f"==============\n\n")
+                f.write(f"Name: {base_name}\n")
+                f.write(f"Date: {manifest['build_date']}\n")
+                f.write(f"Builder Version: {manifest['builder_version']}\n")
+                f.write(f"Content Hash: {manifest['content_hash']}\n")
+                f.write(f"Firmware Support: {manifest.get('supported_firmware', 'N/A')}\n")
+
+                if comment:
+                    f.write(f"\nComment:\n{comment}\n")
+
+                f.write(f"\nComponents:\n")
+                f.write(f"-----------\n")
+
+                for cid, data in manifest.get('components', {}).items():
+                    f.write(f"- {data['name']} ({data['version']})\n")
+
+        except Exception as e:
+            print(f"Error generating metadata file: {e}")
 
     def _get_asset_configs(self, comp_data):
         """
