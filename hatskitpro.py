@@ -1535,8 +1535,19 @@ class HATSKitProGUI:
 def main():
     root = ttk.Window(themename="darkly")
     app = HATSKitProGUI(root)
-    root.mainloop()
 
+    # --- Force Window to Front on Startup ---
+    root.deiconify()  # Ensure window is not minimized
+    root.lift()       # Bring window to the top of the stacking order
+    root.focus_force() # Force focus to this window
+
+    # Trick: Briefly make it 'topmost' to ensure it pops over other apps,
+    # then disable 'topmost' so it behaves normally afterwards.
+    root.attributes('-topmost', True)
+    root.after(50, lambda: root.attributes('-topmost', False))
+    # ---------------------------------------------
+
+    root.mainloop()
 
 if __name__ == '__main__':
     main()
