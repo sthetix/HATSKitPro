@@ -67,12 +67,6 @@ class HATSKitProGUI:
         self.root.title(f"HATSKit Pro v{VERSION}")
         self.root.geometry("1100x1200")
         self.root.resizable(True, True)
-
-        # Bind events to debug window state changes
-        self.root.bind('<Unmap>', self._on_window_unmap)
-        self.root.bind('<Map>', self._on_window_map)
-        self.root.bind('<FocusOut>', self._on_focus_out)
-        self.root.bind('<FocusIn>', self._on_focus_in)
         
         # Variables
         self.github_pat = ttk.StringVar()
@@ -281,38 +275,32 @@ class HATSKitProGUI:
 
     def create_builder_tab_ui(self):
         """Create Pack Builder tab UI only (logic in builder.py)"""
-        # Info panel
-        info_frame = ttk.Labelframe(self.builder_tab, text="Information", padding="10")
-        info_frame.pack(fill=X, padx=10, pady=5)
 
-        ttk.Label(info_frame, text="Select components to include in your HATS pack. Use Ctrl+Click or Shift+Click to select multiple.\n"
-                                   "💡 Double-click any component to set a specific version manually.",
-                font=('Segoe UI', 9)).pack()
+        # Styles
+        style = ttk.Style()
+        style.layout("Builder.Treeview", [('Builder.Treeview.treearea', {'sticky': 'nswe'})])
+        style.layout("Builder.Treeview.Item", [('Treeitem.padding', {'sticky': 'nswe', 'children': [('Treeitem.image', {'side': 'left', 'sticky': ''}), ('Treeitem.focus', {'side': 'left', 'sticky': '', 'children': [('Treeitem.text', {'side': 'left', 'sticky': ''})]})]})])
+        style.configure("Builder.Treeview", font=('Segoe UI', 14), rowheight=26, indent=20)
+        style.configure("Builder.Treeview.Heading", font=('Segoe UI', 14, 'bold'), background="#375a7f")
+        style.map("Builder.Treeview", foreground=[], background=[('selected', '#4a4a4a')])
         
         # Main content area
         content_frame = ttk.Frame(self.builder_tab)
         content_frame.pack(fill=BOTH, expand=True, padx=10, pady=5)
         
-        # LEFT PANEL
-        left_frame = ttk.Labelframe(content_frame, text="Available Components", padding="10")
-        left_frame.pack(side=LEFT, fill=BOTH, expand=True, padx=(0, 5))
-        
+        # Main list panel
+        main_list_frame = ttk.Labelframe(content_frame, text="Components List", padding="10")
+        main_list_frame.pack(fill=BOTH, expand=True)
+
         # Search box
-        search_frame = ttk.Frame(left_frame)
+        search_frame = ttk.Frame(main_list_frame)
         search_frame.pack(fill=X, pady=(0, 5))
         ttk.Label(search_frame, text="Search:").pack(side=LEFT, padx=(0, 5))
         self.builder_search = ttk.Entry(search_frame)
         self.builder_search.pack(side=LEFT, fill=X, expand=True)
         
-        # Category filter
-        filter_frame = ttk.Frame(left_frame)
-        filter_frame.pack(fill=X, pady=(0, 5))
-        ttk.Label(filter_frame, text="Category:").pack(side=LEFT, padx=(0, 5))
-        self.builder_category_filter = ttk.Combobox(filter_frame, state="readonly", width=15)
-        self.builder_category_filter.pack(side=LEFT)
-        
         # Component list
-        list_frame = ttk.Frame(left_frame)
+        list_frame = ttk.Frame(main_list_frame)
         list_frame.pack(fill=BOTH, expand=True)
         
         list_scroll = ttk.Scrollbar(list_frame, bootstyle="primary-round")
@@ -320,88 +308,73 @@ class HATSKitProGUI:
         
         self.builder_list = ttk.Treeview(
             list_frame,
-            columns=('name', 'category', 'version'),
-            show='headings',
+            columns=('description', 'version'), 
+            show='tree headings',
             yscrollcommand=list_scroll.set,
             selectmode='extended',
-            bootstyle="primary"
+            style="Builder.Treeview"
         )
 
-        self.builder_list.heading('name', text='Component Name')
-        self.builder_list.heading('category', text='Category')
-        self.builder_list.heading('version', text='Manual Version')
-
-        self.builder_list.column('name', width=180, minwidth=120)
-        self.builder_list.column('category', width=120, minwidth=80)
-        self.builder_list.column('version', width=150, minwidth=100)
+        # Column Config
+        self.builder_list.heading('#0', text='Component', anchor=W)
+        self.builder_list.column('#0', width=260, anchor=W)
+        self.builder_list.heading('description', text='Description', anchor=W)
+        self.builder_list.column('description', width=600, anchor=W)
+        self.builder_list.heading('version', text='Version')
+        self.builder_list.column('version', width=120, anchor=CENTER)
         
         list_scroll.config(command=self.builder_list.yview)
         self.builder_list.pack(fill=BOTH, expand=True)
-        
+
+        # Tags Config
+        self.builder_list.tag_configure('category', font=('Segoe UI', 14, 'bold'), background='#3a3a3a', foreground='white')
+        self.builder_list.tag_configure('component', font=('Segoe UI', 14))
+        self.builder_list.tag_configure('checked', foreground='#00bc8c')
+        self.builder_list.tag_configure('update', foreground='#fd7e14')
+        self.builder_list.tag_configure('manual', foreground='#0dcaf0')
+
         # Buttons under list
-        left_buttons = ttk.Frame(left_frame)
-        left_buttons.pack(fill=X, pady=(5, 0))
-        ttk.Button(left_buttons, text="Select All", bootstyle="secondary").pack(side=LEFT, padx=2)
-        ttk.Button(left_buttons, text="Clear Selection", bootstyle="secondary").pack(side=LEFT, padx=2)
-        ttk.Button(left_buttons, text="Fetch Versions", bootstyle="info").pack(side=LEFT, padx=2)
+        list_buttons = ttk.Frame(main_list_frame)
+        list_buttons.pack(fill=X, pady=(5, 0))
+        ttk.Button(list_buttons, text="Select All", bootstyle="secondary").pack(side=LEFT, padx=2)
+        ttk.Button(list_buttons, text="Clear Selection", bootstyle="secondary").pack(side=LEFT, padx=2)
+        ttk.Button(list_buttons, text="Fetch Versions", bootstyle="info").pack(side=LEFT, padx=2)
         
-        # RIGHT PANEL
-        right_frame = ttk.Labelframe(content_frame, text="Selected Components", padding="10")
-        right_frame.pack(side=RIGHT, fill=BOTH, expand=True, padx=(5, 0))
-        
-        self.selection_label = ttk.Label(right_frame, text="Selected: 0 components",
-                                        font=('Segoe UI', 9, 'bold'), bootstyle="info")
-        self.selection_label.pack(fill=X, pady=(0, 10))
-        
-        preview_frame = ttk.Frame(right_frame)
-        preview_frame.pack(fill=BOTH, expand=True)
-        
-        preview_scroll = ttk.Scrollbar(preview_frame, bootstyle="primary-round")
-        preview_scroll.pack(side=RIGHT, fill=Y)
-        
-        self.builder_preview = ttk.Treeview(
-            preview_frame,
-            columns=('name', 'version', 'category'),
-            show='headings',
-            yscrollcommand=preview_scroll.set,
-            selectmode='browse',
-            bootstyle="success"
-        )
-        
-        self.builder_preview.heading('name', text='Component')
-        self.builder_preview.heading('version', text='Version')
-        self.builder_preview.heading('category', text='Category')
-        
-        self.builder_preview.column('name', width=180)
-        self.builder_preview.column('version', width=80)
-        self.builder_preview.column('category', width=100)
+        # Info panel (Bottom)
+        info_frame = ttk.Frame(self.builder_tab, padding="10")
+        info_frame.pack(fill=X, padx=10, pady=(0, 0))
 
-        # Configure tag for updated components (orange/warning color)
-        self.builder_preview.tag_configure('updated', foreground='#FFA500')
+        ttk.Label(info_frame, 
+                  text="• Click boxes or use spacebar to select components.\n"
+                       "• Click Category boxes to select all in group.\n"
+                       "• Double-click a component name to set a manual version.",
+                  font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 0))
 
-        preview_scroll.config(command=self.builder_preview.yview)
-        self.builder_preview.pack(fill=BOTH, expand=True)
-        
-        # Comment input section
+        # Color Legend
+        legend_frame = ttk.Frame(info_frame)
+        legend_frame.pack(anchor=W, pady=0) 
+
+        ttk.Label(legend_frame, text="Color Legend: ", font=('Segoe UI', 10)).pack(side=LEFT)
+        ttk.Label(legend_frame, text="Selected Component", font=('Segoe UI', 10, 'bold'), foreground='#00bc8c').pack(side=LEFT)
+        ttk.Label(legend_frame, text=" | ", font=('Segoe UI', 10)).pack(side=LEFT)
+        ttk.Label(legend_frame, text="Manual Version", font=('Segoe UI', 10, 'bold'), foreground='#0dcaf0').pack(side=LEFT)
+        ttk.Label(legend_frame, text=" | ", font=('Segoe UI', 10)).pack(side=LEFT)
+        ttk.Label(legend_frame, text="Update Available", font=('Segoe UI', 10, 'bold'), foreground='#fd7e14').pack(side=LEFT)
+
+        # Footer UI
         comment_frame = ttk.Frame(self.builder_tab, padding="10")
-        comment_frame.pack(fill=X, padx=10, pady=(5, 0))
-        
-        ttk.Label(comment_frame, text="Build Comment (optional):", 
-                font=('Segoe UI', 9)).pack(side=LEFT, padx=(0, 5))
+        comment_frame.pack(fill=X, padx=10, pady=(0, 0))
+        ttk.Label(comment_frame, text="Build Comment (optional):", font=('Segoe UI', 10)).pack(side=LEFT, padx=(0, 5))
         self.build_comment = ttk.Entry(comment_frame)
         self.build_comment.pack(side=LEFT, fill=X, expand=True)
         
         # Action buttons at bottom
         action_frame = ttk.Frame(self.builder_tab, padding="10")
         action_frame.pack(fill=X, padx=10, pady=5)
-        
-        ttk.Label(action_frame, text="Tip: Select components from the left list, then click Build Pack",
-                font=('Segoe UI', 8), bootstyle="warning").pack(side=LEFT)
-        
+        self.selection_label = ttk.Label(action_frame, text="Selected: 0 components", font=('Segoe UI', 10, 'bold'), bootstyle="info")
+        self.selection_label.pack(side=LEFT, padx=(0, 20))
         button_container = ttk.Frame(action_frame)
         button_container.pack(side=RIGHT)
-        
-        ttk.Button(button_container, text="View Details", bootstyle="info-outline").pack(side=LEFT, padx=5)
         ttk.Button(button_container, text="Build Pack", bootstyle="success", width=15).pack(side=LEFT, padx=5)
         
     def create_editor_tab_ui(self):
@@ -429,7 +402,7 @@ class HATSKitProGUI:
             show='tree',
             yscrollcommand=list_scroll.set,
             selectmode='browse',
-            bootstyle="primary"
+            style="Builder.Treeview"  #Changed from bootstyle="primary"
         )
         list_scroll.config(command=self.editor_listbox.yview)
         self.editor_listbox.pack(fill=BOTH, expand=True)
@@ -479,19 +452,19 @@ class HATSKitProGUI:
         form = self.editor_form
         
         # Basic info
-        ttk.Label(form, text="Component ID:", font=('Segoe UI', 9, 'bold')).grid(row=0, column=0, sticky=W, pady=5, padx=(0, 10))
+        ttk.Label(form, text="Component ID:", font=('Segoe UI', 10, 'bold')).grid(row=0, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_id = ttk.Entry(form, width=40)
         self.editor_id.grid(row=0, column=1, sticky=EW, pady=5, padx=(0, 10))
         
-        ttk.Label(form, text="Name:", font=('Segoe UI', 9, 'bold')).grid(row=1, column=0, sticky=W, pady=5, padx=(0, 10))
+        ttk.Label(form, text="Name:", font=('Segoe UI', 10, 'bold')).grid(row=1, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_name = ttk.Entry(form, width=40)
         self.editor_name.grid(row=1, column=1, sticky=EW, pady=5, padx=(0, 10))
         
-        ttk.Label(form, text="Category:", font=('Segoe UI', 9, 'bold')).grid(row=2, column=0, sticky=W, pady=5, padx=(0, 10))
+        ttk.Label(form, text="Category:", font=('Segoe UI', 10, 'bold')).grid(row=2, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_category = ttk.Combobox(form, values=["Essential", "Homebrew Apps", "Patches", "Tesla Overlays", "Payloads"], state="readonly")
         self.editor_category.grid(row=2, column=1, sticky=EW, pady=5, padx=(0, 10))
         
-        ttk.Label(form, text="Description:", font=('Segoe UI', 9, 'bold')).grid(row=3, column=0, sticky=NW, pady=5, padx=(0, 10))
+        ttk.Label(form, text="Description:", font=('Segoe UI', 10, 'bold')).grid(row=3, column=0, sticky=NW, pady=5, padx=(0, 10))
         self.editor_description = ttk.Text(form, height=3, width=40, wrap='word')
         self.editor_description.grid(row=3, column=1, sticky=EW, pady=5, padx=(0, 10))
         
@@ -499,7 +472,7 @@ class HATSKitProGUI:
         ttk.Separator(form, orient=HORIZONTAL).grid(row=4, column=0, columnspan=2, sticky=EW, pady=10)
         ttk.Label(form, text="Source Information", font=('Segoe UI', 10, 'bold')).grid(row=5, column=0, columnspan=2, sticky=W, pady=5)
         
-        ttk.Label(form, text="Source Type:", font=('Segoe UI', 9, 'bold')).grid(row=6, column=0, sticky=W, pady=5, padx=(0, 10))
+        ttk.Label(form, text="Source Type:", font=('Segoe UI', 10, 'bold')).grid(row=6, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_source_type = ttk.Combobox(
             form,
             values=["github_release", "github_tag", "direct_url"],
@@ -508,23 +481,23 @@ class HATSKitProGUI:
         self.editor_source_type.grid(row=6, column=1, sticky=EW, pady=5, padx=(0, 10))
 
         # --- Dynamic Source Fields ---
-        self.editor_repo_label = ttk.Label(form, text="[User]/[Repo]:", font=('Segoe UI', 9, 'bold'))
+        self.editor_repo_label = ttk.Label(form, text="[User]/[Repo]:", font=('Segoe UI', 10, 'bold'))
         self.editor_repo_label.grid(row=7, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_repo = ttk.Entry(form, width=40)
         self.editor_repo.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
 
         # --- Tag field (github_tag only, always after repo) ---
-        self.editor_tag_label = ttk.Label(form, text="Tag:", font=('Segoe UI', 9, 'bold'))
+        self.editor_tag_label = ttk.Label(form, text="Tag:", font=('Segoe UI', 10, 'bold'))
         self.editor_tag = ttk.Entry(form, width=40)
         
         # --- Single Asset Pattern (backward compatible) ---
-        self.editor_pattern_label = ttk.Label(form, text="Asset Pattern:", font=('Segoe UI', 9, 'bold'))
+        self.editor_pattern_label = ttk.Label(form, text="Asset Pattern:", font=('Segoe UI', 10, 'bold'))
         self.editor_pattern_label.grid(row=8, column=0, sticky=W, pady=5, padx=(0, 10))
         self.editor_pattern = ttk.Entry(form, width=40)
         self.editor_pattern.grid(row=8, column=1, sticky=EW, pady=5, padx=(0, 10))
 
         # --- Multi-Asset Patterns Section ---
-        self.editor_assets_label = ttk.Label(form, text="Asset Patterns:", font=('Segoe UI', 9, 'bold'))
+        self.editor_assets_label = ttk.Label(form, text="Asset Patterns:", font=('Segoe UI', 10, 'bold'))
         self.editor_assets_frame = ttk.Frame(form)
 
         # Container with list on left and buttons on right
@@ -548,7 +521,7 @@ class HATSKitProGUI:
         assets_btn_frame = ttk.Frame(assets_container)
         assets_btn_frame.pack(side=RIGHT, fill=Y, padx=(5, 0))
 
-        self.editor_url_label = ttk.Label(form, text="Direct URL:", font=('Segoe UI', 9, 'bold'))
+        self.editor_url_label = ttk.Label(form, text="Direct URL:", font=('Segoe UI', 10, 'bold'))
         self.editor_url = ttk.Entry(form, width=40)
 
         def update_source_fields(*args):
@@ -602,7 +575,7 @@ class HATSKitProGUI:
         steps_header = ttk.Frame(form)
         steps_header.grid(row=11, column=0, columnspan=2, sticky=EW, pady=5)
         ttk.Label(steps_header, text="Processing Steps for Selected Asset", font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
-        self.editor_steps_info = ttk.Label(steps_header, text="(no asset selected)", font=('Segoe UI', 9), foreground='gray')
+        self.editor_steps_info = ttk.Label(steps_header, text="(no asset selected)", font=('Segoe UI', 10), foreground='gray')
         self.editor_steps_info.pack(side=LEFT, padx=(10, 0))
 
         # Steps list
@@ -638,8 +611,8 @@ class HATSKitProGUI:
         info_row = ttk.Frame(download_frame)
         info_row.pack(fill=X, pady=(0, 10))
 
-        ttk.Label(info_row, text="Latest Release:", font=('Segoe UI', 9, 'bold')).pack(side=LEFT, padx=(0, 5))
-        self.latest_release_label = ttk.Label(info_row, text="Checking...", font=('Segoe UI', 9))
+        ttk.Label(info_row, text="Latest Release:", font=('Segoe UI', 10, 'bold')).pack(side=LEFT, padx=(0, 5))
+        self.latest_release_label = ttk.Label(info_row, text="Checking...", font=('Segoe UI', 10))
         self.latest_release_label.pack(side=LEFT, padx=(0, 10))
 
         ttk.Button(info_row, text="Refresh", bootstyle="info-outline", width=10).pack(side=LEFT, padx=5)
@@ -673,8 +646,8 @@ class HATSKitProGUI:
         firmware_info_row = ttk.Frame(firmware_frame)
         firmware_info_row.pack(fill=X, pady=(0, 10))
 
-        ttk.Label(firmware_info_row, text="Latest Release:", font=('Segoe UI', 9, 'bold')).pack(side=LEFT, padx=(0, 5))
-        self.latest_firmware_label = ttk.Label(firmware_info_row, text="Checking...", font=('Segoe UI', 9))
+        ttk.Label(firmware_info_row, text="Latest Release:", font=('Segoe UI', 10, 'bold')).pack(side=LEFT, padx=(0, 5))
+        self.latest_firmware_label = ttk.Label(firmware_info_row, text="Checking...", font=('Segoe UI', 10))
         self.latest_firmware_label.pack(side=LEFT, padx=(0, 10))
 
         ttk.Button(firmware_info_row, text="Refresh", bootstyle="info-outline", width=10).pack(side=LEFT, padx=5)
@@ -763,7 +736,7 @@ class HATSKitProGUI:
         action_frame.pack(fill=X, padx=10, pady=5)
         
         self.manager_selection_label = ttk.Label(action_frame, text="Selected: 0 components (0 files)",
-                                                 font=('Segoe UI', 9, 'bold'))
+                                                 font=('Segoe UI', 10, 'bold'))
         self.manager_selection_label.pack(side=LEFT)
         
         button_container = ttk.Frame(action_frame)
@@ -785,14 +758,14 @@ class HATSKitProGUI:
         ttk.Label(info_frame,
                   text="Configure critical system settings for your SD card. Settings are auto-detected when you select an SD card.\n"
                        "Adjust network modes, Hekate boot menu options, and USB 3.0 settings, then click 'Save All Settings' to apply.",
-                  font=('Segoe UI', 9)).pack()
+                  font=('Segoe UI', 10)).pack()
 
         # SD Card path selection - Smart status display
         sd_frame = ttk.Labelframe(self.postproc_tab, text="SD Card Location", padding="10")
         sd_frame.pack(fill=X, padx=10, pady=10)
 
         # Status display that shows current path or prompts user to select
-        self.system_config_sd_status = ttk.Label(sd_frame, text="", font=('Segoe UI', 9), anchor=W)
+        self.system_config_sd_status = ttk.Label(sd_frame, text="", font=('Segoe UI', 10), anchor=W)
         self.system_config_sd_status.pack(side=LEFT, padx=5, fill=X, expand=True)
 
         # Browse button for selecting SD card
@@ -829,7 +802,7 @@ class HATSKitProGUI:
         self.network_radio_default.pack(anchor=W)
         self.mode1_label = ttk.Label(self.mode1_frame,
                                      text="• All Nintendo connections blocked\n• Safest option to prevent bans\n• Recommended for most users",
-                                     font=('Segoe UI', 9),
+                                     font=('Segoe UI', 10),
                                      bootstyle="secondary")
         self.mode1_label.pack(anchor=W, padx=(20, 0))
 
@@ -846,7 +819,7 @@ class HATSKitProGUI:
         self.network_radio_sysmmc.pack(anchor=W)
         self.mode2_label = ttk.Label(self.mode2_frame,
                                      text="• sysMMC can connect to Nintendo\n• Risk of ban if detected\n• For playing legitimate games online",
-                                     font=('Segoe UI', 9),
+                                     font=('Segoe UI', 10),
                                      bootstyle="secondary")
         self.mode2_label.pack(anchor=W, padx=(20, 0))
 
@@ -863,7 +836,7 @@ class HATSKitProGUI:
         self.network_radio_emummc.pack(anchor=W)
         self.mode3_label = ttk.Label(self.mode3_frame,
                                      text="• emuMMC can connect to Nintendo\n• Still risk of console ban\n• For advanced users who accept the risk",
-                                     font=('Segoe UI', 9),
+                                     font=('Segoe UI', 10),
                                      bootstyle="secondary")
         self.mode3_label.pack(anchor=W, padx=(20, 0))
 
@@ -880,7 +853,7 @@ class HATSKitProGUI:
         self.network_radio_both.pack(anchor=W)
         self.mode4_label = ttk.Label(self.mode4_frame,
                                      text="• No protection active, highly dangerous\n• Maximum ban risk\n• Console identifiers are fully exposed",
-                                     font=('Segoe UI', 9),
+                                     font=('Segoe UI', 10),
                                      bootstyle="secondary")
         self.mode4_label.pack(anchor=W, padx=(20, 0))
 
@@ -899,7 +872,7 @@ class HATSKitProGUI:
 
         self.hekate_info_label = ttk.Label(hekate_frame,
                                            text="Select boot options to show in menu:",
-                                           font=('Segoe UI', 9),
+                                           font=('Segoe UI', 10),
                                            bootstyle="secondary")
         self.hekate_info_label.pack(anchor=W, pady=(0, 5))
 
@@ -953,7 +926,7 @@ class HATSKitProGUI:
 
         self.usb_info_label = ttk.Label(usb_frame,
                                         text="Enable USB 3.0 superspeed for homebrew:",
-                                        font=('Segoe UI', 9),
+                                        font=('Segoe UI', 10),
                                         bootstyle="secondary")
         self.usb_info_label.pack(anchor=W, pady=(0, 5))
 
@@ -996,48 +969,6 @@ class HATSKitProGUI:
                   bootstyle="warning").pack(side=LEFT, padx=5)
 
     # ===== HELPER METHODS =====
-
-    def _on_window_unmap(self, event):
-        """Debug: Called when window is unmapped (minimized/hidden)"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                geometry = self.root.geometry()
-                x = self.root.winfo_x()
-                y = self.root.winfo_y()
-                print(f"DEBUG: Window UNMAPPED - State: {state}, Geometry: {geometry}, Position: ({x}, {y})")
-            except Exception as e:
-                print(f"DEBUG: Window unmapped - Error getting info: {e}")
-
-    def _on_window_map(self, event):
-        """Debug: Called when window is mapped (shown)"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                geometry = self.root.geometry()
-                x = self.root.winfo_x()
-                y = self.root.winfo_y()
-                print(f"DEBUG: Window MAPPED - State: {state}, Geometry: {geometry}, Position: ({x}, {y})")
-            except Exception as e:
-                print(f"DEBUG: Window mapped - Error getting info: {e}")
-
-    def _on_focus_out(self, event):
-        """Debug: Called when window loses focus"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                print(f"DEBUG: Window LOST FOCUS - State: {state}")
-            except Exception as e:
-                print(f"DEBUG: Lost focus - Error: {e}")
-
-    def _on_focus_in(self, event):
-        """Debug: Called when window gains focus"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                print(f"DEBUG: Window GAINED FOCUS - State: {state}")
-            except Exception as e:
-                print(f"DEBUG: Gained focus - Error: {e}")
 
     def browse_sd_card_manager(self):
         """Browse for SD card from Manager tab (silent, no popup)"""

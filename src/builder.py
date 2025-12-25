@@ -33,10 +33,17 @@ class PackBuilder:
 
     ATMOSPHERE_REPO = "Atmosphere-NX/Atmosphere"
 
+    # Checkbox Unicode Symbols
+    CHECKED_ICON = "☑ "
+    UNCHECKED_ICON = "☐ "
+
     def __init__(self, main_gui):
         """Initialize with reference to main GUI"""
         self.gui = main_gui
         self.fetch_button = None # To hold a reference to the button
+
+        # Track Checked Components (Set of Component IDs)
+        self.checked_components = set()
 
         # Connect event handlers to UI widgets
         self.connect_events()
@@ -45,19 +52,26 @@ class PackBuilder:
         """Connect event handlers to UI elements"""
         # Search and filter
         self.gui.builder_search.bind('<KeyRelease>', self.filter_builder_components)
-        self.gui.builder_category_filter.bind('<<ComboboxSelected>>', self.filter_builder_components)
 
-        # Selection change
-        self.gui.builder_list.bind('<<TreeviewSelect>>', self.on_builder_selection_change)
+        # Mouse Click Logic (for Checkboxes)
+        self.gui.builder_list.bind('<Button-1>', self.on_tree_click)
+        
+        # Spacebar Logic (Toggle checkboxes with keyboard)
+        self.gui.builder_list.bind('<space>', self.on_space_press)
 
         # Double-click to edit version
         self.gui.builder_list.bind('<Double-Button-1>', self.on_version_double_click)
+        
+        # Prevent categories from collapsing (Binding added to enforce your logic)
+        self.gui.builder_list.bind('<<TreeviewClose>>', self.prevent_category_collapse)
 
-        # Get button references and connect commands
-        # We need to find the buttons in the UI and connect them
-        builder_buttons = self.gui.builder_tab.winfo_children()
+        # Connect buttons
         self._connect_builder_buttons()
-    
+        
+    def prevent_category_collapse(self, event):
+        """Force categories to stay open"""
+        return "break"
+
     def _connect_builder_buttons(self):
         """Find and connect builder tab buttons"""
         # This connects the button commands after UI creation
@@ -71,33 +85,272 @@ class PackBuilder:
                         child.config(command=self.builder_clear_selection)
                     elif text == "Fetch Versions":
                         child.config(command=self.fetch_github_versions)
-                        self.fetch_button = child # Store reference
-                    elif text == "View Details":
-                        child.config(command=self.show_component_details)
+                        self.fetch_button = child 
                     elif text == "Build Pack":
                         child.config(command=self.build_pack)
                 find_buttons(child)
         
         find_buttons(self.gui.builder_tab)
 
+    def populate_builder_list(self):
+        """Populate builder list with components grouped by category"""
+        self.checked_components.clear()
+        self.filter_builder_components(initial_load=True)
+
+    def filter_builder_components(self, event=None, initial_load=False):
+        """Filter components based on search and rebuild hierarchical tree."""
+        
+        # Clear Treeview
+        for item in self.gui.builder_list.get_children():
+            self.gui.builder_list.delete(item)
+
+        search_term = self.gui.builder_search.get().lower()
+        last_build_components = self.gui.last_build_data.get('components', {})
+
+        # Group data by category
+        grouped_data = {}
+        for comp_id, comp_data in self.gui.components_data.items():
+            name = comp_data['name']
+            category = comp_data.get('category', 'Uncategorized')
+
+            # Apply Search Filter
+            if search_term and search_term not in name.lower():
+                continue
+
+            if category not in grouped_data:
+                grouped_data[category] = []
+            grouped_data[category].append((comp_id, comp_data))
+
+        # Helper to clean versions for robust comparison (e.g. "v1.0" == "1.0")
+        def normalize_ver(v):
+            return str(v).lower().lstrip('v').strip()
+
+        # Populate Treeview
+        for category in sorted(grouped_data.keys()):
+            # Create Category Node ID
+            cat_id = f"CAT_{category}"
+
+            # Visual state of category
+            cat_text = f"{self.UNCHECKED_ICON} {category}"
+
+            # Insert Category - Always open=True
+            self.gui.builder_list.insert('', END, iid=cat_id, text=cat_text, open=True, tags=('category',))
+
+            # Insert Components
+            for comp_id, comp_data in sorted(grouped_data[category], key=lambda x: x[1]['name']):
+    
+                # Check Logic
+                is_checked = False
+    
+                if initial_load:
+                    # Default flags in components.json
+                    if comp_data.get('default', False):
+                        is_checked = True
+                else:
+                    if comp_id in self.checked_components:
+                        is_checked = True
+
+                if is_checked:
+                    self.checked_components.add(comp_id)
+                    icon = self.CHECKED_ICON
+                else:
+                    icon = self.UNCHECKED_ICON
+
+                # Color Indicators Logic
+                manual_ver = self.gui.manual_versions.get(comp_id, "")
+                fetched_ver = comp_data.get('asset_info', {}).get('version', 'Latest')
+    
+                # Determine Base Version for comparison
+                if comp_id in last_build_components:
+                    base_ver = last_build_components[comp_id].get('version', 'N/A')
+                else:
+                    base_ver = comp_data.get('version', 'N/A')
+
+                # Check for Update
+                is_update = False
+                if base_ver != 'N/A' and fetched_ver != 'Latest':
+                    if normalize_ver(fetched_ver) != normalize_ver(base_ver):
+                        is_update = True
+    
+                tags = ['component']
+                display_ver = fetched_ver
+
+                if manual_ver:
+                    display_ver = manual_ver
+                    tags.append('manual')
+                elif is_update:
+                    display_ver = fetched_ver
+                    tags.append('update')
+                elif is_checked:
+                    tags.append('checked')
+    
+                display_text = f"{icon} {comp_data['name']}"
+    
+                # Description Handling
+                description = comp_data.get('description', '')
+                if isinstance(description, dict):
+                    description = description.get('descriptions', {}).get('en', '')
+                elif not isinstance(description, str):
+                    description = ""
+
+                # Insert into tree
+                self.gui.builder_list.insert(cat_id, END, iid=comp_id, text=display_text, 
+                                             values=(description, display_ver), tags=tuple(tags))
+
+        self.update_category_checkboxes()
+        self.update_selection_count()
+    
+    def update_category_checkboxes(self):
+        """Update visual state of category checkboxes based on their children"""
+        for cat_id in self.gui.builder_list.get_children():
+            children = self.gui.builder_list.get_children(cat_id)
+            if not children: continue
+
+            # If all children are checked, mark category checked
+            all_checked = True
+            for child in children:
+                if child not in self.checked_components:
+                    all_checked = False
+                    break
+
+            current_text = self.gui.builder_list.item(cat_id, "text")
+            cat_name = current_text.replace(self.CHECKED_ICON, "").replace(self.UNCHECKED_ICON, "").strip()
+
+            if all_checked:
+                self.gui.builder_list.item(cat_id, text=f"{self.CHECKED_ICON} {cat_name}")
+            else:
+                self.gui.builder_list.item(cat_id, text=f"{self.UNCHECKED_ICON} {cat_name}")
+
+    def on_tree_click(self, event):
+        """Handle clicks to simulate checkbox toggling"""
+        
+        # Disable Shift+Click functionality completely
+        if event.state & 0x0001:
+            return "break"
+
+        region = self.gui.builder_list.identify_region(event.x, event.y)
+        item_id = self.gui.builder_list.identify_row(event.y)
+        
+        if not item_id:
+            return
+
+        # If user clicked on the tree/text area
+        if region == "tree" or region == "cell":
+            if item_id.startswith("CAT_"):
+                self.toggle_category(item_id)
+            else:
+                self.toggle_component(item_id)
+    
+    def on_space_press(self, event):
+        """Toggle selection for all highlighted rows via Spacebar"""
+        selected_items = self.gui.builder_list.selection()
+        if not selected_items:
+            return
+
+        for item_id in selected_items:
+            if item_id.startswith("CAT_"):
+                self.toggle_category(item_id)
+            else:
+                self.toggle_component(item_id)
+
+    def update_selection_count(self):
+        """Update the label showing how many components are selected"""
+        count = len(self.checked_components)
+        self.gui.selection_label.config(text=f"Selected: {count} components")
+
+    def toggle_component(self, comp_id):
+        """Toggle a single component's checked state"""
+        tags = list(self.gui.builder_list.item(comp_id, "tags"))
+        
+        has_priority_color = 'manual' in tags or 'update' in tags
+
+        if comp_id in self.checked_components:
+            self.checked_components.remove(comp_id)
+            icon = self.UNCHECKED_ICON
+            if not has_priority_color and 'checked' in tags:
+                tags.remove('checked')
+        else:
+            self.checked_components.add(comp_id)
+            icon = self.CHECKED_ICON
+            if not has_priority_color and 'checked' not in tags:
+                tags.insert(1, 'checked')
+        
+        current_text = self.gui.builder_list.item(comp_id, "text")
+        clean_name = current_text.replace(self.CHECKED_ICON, "").replace(self.UNCHECKED_ICON, "").strip()
+        self.gui.builder_list.item(comp_id, text=f"{icon} {clean_name}", tags=tuple(tags))
+        
+        self.update_category_checkboxes()
+        self.update_selection_count()
+
+    def toggle_category(self, cat_id):
+        """Toggle all components in a category"""
+        children = self.gui.builder_list.get_children(cat_id)
+        if not children: return
+
+        target_check = False
+        for child in children:
+            if child not in self.checked_components:
+                target_check = True
+                break
+        
+        for child in children:
+            tags = list(self.gui.builder_list.item(child, "tags"))
+            has_priority_color = 'manual' in tags or 'update' in tags
+
+            if target_check:
+                self.checked_components.add(child)
+                icon = self.CHECKED_ICON
+                if not has_priority_color and 'checked' not in tags:
+                    tags.insert(1, 'checked')
+            else:
+                if child in self.checked_components:
+                    self.checked_components.remove(child)
+                icon = self.UNCHECKED_ICON
+                if not has_priority_color and 'checked' in tags:
+                    tags.remove('checked')
+
+            current_text = self.gui.builder_list.item(child, "text")
+            clean_name = current_text.replace(self.CHECKED_ICON, "").replace(self.UNCHECKED_ICON, "").strip()
+            self.gui.builder_list.item(child, text=f"{icon} {clean_name}", tags=tuple(tags))
+
+        self.update_category_checkboxes()
+        self.update_selection_count()
+
+    def builder_select_all(self):
+        """Check all visible components"""
+        for category in self.gui.builder_list.get_children():
+            children = self.gui.builder_list.get_children(category)
+            for child in children:
+                self.checked_components.add(child)
+        
+        self.filter_builder_components() 
+
+    def builder_clear_selection(self):
+        """Uncheck all components"""
+        self.checked_components.clear()
+        
+        self.filter_builder_components() 
+
     def on_version_double_click(self, event):
         """Handle double-click on component to edit manual version"""
         region = self.gui.builder_list.identify_region(event.x, event.y)
-        if region != "cell":
+        if region != "cell" and region != "tree":
             return
-
         # Get the clicked item
         item = self.gui.builder_list.identify_row(event.y)
+        
+        # Return "break" for categories to strictly disable default collapse behavior
+        if item and item.startswith("CAT_"):
+            return "break"
+
         if not item:
             return
 
-        comp_id = item
-        comp_data = self.gui.components_data.get(comp_id)
+        comp_data = self.gui.components_data.get(item)
         if not comp_data:
             return
-
         # Show version input dialog
-        self.show_version_input_dialog(comp_id, comp_data)
+        self.show_version_input_dialog(item, comp_data)
 
     def show_version_input_dialog(self, comp_id, comp_data):
         """Show dialog to input manual version for a component"""
@@ -116,7 +369,6 @@ class PackBuilder:
         ttk.Label(info_frame, text="Enter a specific version to download (e.g., v1.7.1, 6.2.0)\n"
                                    "Leave empty to fetch the latest version automatically.",
                   wraplength=450).pack(pady=(0, 15))
-
         # Current manual version
         current_manual = self.gui.manual_versions.get(comp_id, "")
 
@@ -125,7 +377,6 @@ class PackBuilder:
         version_entry.pack(fill=X, pady=5)
         version_entry.insert(0, current_manual)
         version_entry.focus()
-
         # Info about current version
         fetched_version = comp_data.get('asset_info', {}).get('version', 'N/A')
         if fetched_version != 'N/A':
@@ -142,16 +393,13 @@ class PackBuilder:
             else:
                 # Remove manual version if empty
                 self.gui.manual_versions.pop(comp_id, None)
-
             # Refresh the display
             self.filter_builder_components()
-            self.update_builder_preview()
             dialog.destroy()
 
         def clear_version():
             self.gui.manual_versions.pop(comp_id, None)
             self.filter_builder_components()
-            self.update_builder_preview()
             dialog.destroy()
 
         ttk.Button(button_frame, text="Save", command=save_version,
@@ -163,349 +411,16 @@ class PackBuilder:
 
         self.gui.center_window(dialog)
 
-    def compute_content_hash(self, selected_components):
-        """
-        Compute a content hash based on selected components and their versions.
-        This provides a unique identifier for the pack contents.
-        """
-        hasher = hashlib.sha1()
-        for comp_id in sorted(selected_components.keys()):
-            version = selected_components[comp_id].get('asset_info', {}).get('version', 'N/A')
-            hasher.update(f"{comp_id}:{version}".encode('utf-8'))
-        return hasher.hexdigest()[:7]
-
-    def extract_firmware_version_from_body(self, release_body):
-        """
-        Extract supported firmware version from Atmosphere release body.
-        Based on atmos.py logic with inheritance support.
-        """
-        if not release_body:
-            return "N/A"
-
-        # 1. PRIMARY PATTERN: "Basic support was added for 20.4.0" (or similar)
-        pattern_1 = re.search(r'(?:support|support was added|HOS)\s*.*?(?:for|up to)\s*(\d+\.\d+\.\d+)',
-                             release_body, re.IGNORECASE)
-        if pattern_1:
-            return pattern_1.group(1)
-
-        # 2. FALLBACK PATTERN: Explicit HOS/firmware mention
-        match_2 = re.search(r'(?:HOS|firmware)\s*(\d+\.\d+\.\d+)', release_body, re.IGNORECASE)
-        if match_2:
-            return match_2.group(1)
-
-        # 3. SECONDARY FALLBACK: General "supports up to" mention
-        match_3 = re.search(r'supports\s*up\s*to\s*(\d+\.\d+\.\d+)', release_body, re.IGNORECASE)
-        if match_3:
-            return match_3.group(1)
-
-        return "N/A"
-
-    def get_atmosphere_firmware_info(self, atmosphere_version, log=None):
-        """
-        Fetch firmware info for a specific Atmosphere version.
-        Uses inheritance logic from previous releases if current release doesn't specify.
-
-        Returns: (firmware_version, content_hash)
-        """
-        try:
-            # Fetch recent releases to build inheritance chain (3 is enough for inheritance)
-            api_url = f"https://api.github.com/repos/{self.ATMOSPHERE_REPO}/releases?per_page=3"
-            req = urllib.request.Request(api_url)
-            req.add_header('Accept', 'application/vnd.github.v3+json')
-
-            pat = self.gui.github_pat.get()
-            if pat:
-                req.add_header('Authorization', f'token {pat}')
-
-            if log:
-                log(f"  Fetching Atmosphere release info to determine supported firmware...")
-
-            with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as response:
-                releases = json.loads(response.read().decode())
-
-            # Clean the atmosphere version for comparison
-            clean_version = atmosphere_version.lstrip('v')
-
-            # Build firmware mapping with inheritance
-            latest_known_fw = "N/A"
-            target_fw = "N/A"
-            content_hash = "N/A"
-
-            for release in releases:
-                tag = release.get('tag_name', '').lstrip('v')
-                body = release.get('body', '')
-
-                # Extract firmware from this release
-                fw_found = self.extract_firmware_version_from_body(body)
-
-                # Update inheritance tracker
-                if fw_found != "N/A":
-                    latest_known_fw = fw_found
-                    current_fw = fw_found
-                else:
-                    current_fw = latest_known_fw
-
-                # Check if this is our target version
-                if tag == clean_version:
-                    target_fw = current_fw
-                    # Extract content hash from tag or commit
-                    # Typically format: "1.9.3-master-8b8e4438e"
-                    hash_match = re.search(r'-([a-f0-9]{7,})', release.get('tag_name', ''))
-                    if hash_match:
-                        content_hash = hash_match.group(1)[:7]
-                    break
-
-            if log:
-                if target_fw != "N/A":
-                    log(f"  ✅ Atmosphere {atmosphere_version} supports firmware up to {target_fw}")
-                else:
-                    log(f"  ⚠️ Could not determine firmware support for Atmosphere {atmosphere_version}")
-
-            return target_fw, content_hash
-
-        except Exception as e:
-            if log:
-                log(f"  ⚠️ Error fetching Atmosphere firmware info: {e}")
-            return "N/A", "N/A"
-
-    def populate_builder_list(self):
-        """Populate builder list with components"""
-        # Clear existing items
-        for item in self.gui.builder_list.get_children():
-            self.gui.builder_list.delete(item)
-        
-        components = self.gui.components_data
-        categories = set(comp.get('category', 'Unknown') for comp in components.values())
-        
-        # Update category filter
-        self.gui.builder_category_filter['values'] = ['All Categories'] + sorted(list(categories))
-        self.gui.builder_category_filter.set('All Categories')
-        
-        # Now, populate the list using the filter logic
-        self.filter_builder_components(initial_load=True)
-    
-    def filter_builder_components(self, event=None, initial_load=False):
-        """Filter components based on search and category. Also handles initial population."""
-        
-        if not initial_load:
-            selected_ids = self.gui.builder_list.selection()
-
-        search_term = self.gui.builder_search.get().lower()
-        category_filter = self.gui.builder_category_filter.get()
-        last_build_components = self.gui.last_build_data.get('components', {})
-
-        for item in self.gui.builder_list.get_children():
-            self.gui.builder_list.delete(item)
-
-        for comp_id, comp_data in sorted(self.gui.components_data.items(), key=lambda x: x[1]['name']):
-            name = comp_data['name'].lower()
-            category = comp_data['category']
-
-            # Apply filters
-            if search_term and search_term not in name:
-                continue
-            if category_filter != 'All Categories' and category != category_filter:
-                continue
-
-            display_name = comp_data['name']
-
-            # Get manual version if set
-            manual_version = self.gui.manual_versions.get(comp_id, "Latest")
-
-            self.gui.builder_list.insert('', END, iid=comp_id,
-                                         values=(display_name, category, manual_version))
-
-        # Handle selection
-        if initial_load: # On first load, prioritize last build, then defaults
-            if last_build_components: # Restore from last build
-                for comp_id in last_build_components:
-                    if self.gui.builder_list.exists(comp_id):
-                        self.gui.builder_list.selection_add(comp_id)
-            else: # Or, select defaults
-                for comp_id, comp_data in self.gui.components_data.items():
-                    if comp_data.get('default', False) and self.gui.builder_list.exists(comp_id):
-                        self.gui.builder_list.selection_add(comp_id)
-        else: # On subsequent filters, just re-apply the previous selection
-            for comp_id in selected_ids: 
-                if self.gui.builder_list.exists(comp_id):
-                    self.gui.builder_list.selection_add(comp_id)
-        
-        self.update_builder_preview()
-
-    def on_builder_selection_change(self, event=None):
-        """Update preview when selection changes"""
-        self.update_builder_preview()
-    
-    def update_builder_preview(self):
-        """Update the selected components preview"""
-        # Clear preview
-        for item in self.gui.builder_preview.get_children():
-            self.gui.builder_preview.delete(item)
-
-        # Get selected items
-        selected = self.gui.builder_list.selection()
-
-        # Get last build components for version info
-        last_build_components = self.gui.last_build_data.get('components', {})
-
-        # Update preview
-        for comp_id in selected:
-            comp = self.gui.components_data.get(comp_id, {})
-
-            # Priority 1: Manual version input (highest priority)
-            manual_version = self.gui.manual_versions.get(comp_id, "")
-
-            # Priority 2: Use fetched version from asset_info if available
-            fetched_version = comp.get('asset_info', {}).get('version', 'N/A')
-
-            # Determine which version to use
-            if manual_version:
-                version = manual_version
-            else:
-                version = fetched_version
-
-            # Priority 3: If no fetched version and no manual, try last build version
-            if version == 'N/A' and comp_id in last_build_components:
-                version = last_build_components[comp_id].get('version', 'N/A')
-
-            # Priority 4: If still no version and it's a direct_url, try to extract from URL for preview
-            if version == 'N/A' and comp.get('source_type') == 'direct_url':
-                url = comp.get('repo', '')
-                if url:
-                    version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
-                    if version_match:
-                        version = version_match.group(1)
-                        if not manual_version:
-                            fetched_version = version  # Update fetched_version for comparison
-
-            # Determine component name and check if it's new/updated
-            display_name = comp.get('name', comp_id)
-            is_updated = False
-
-            # Check if this component has a newer version than last build
-            if comp_id in last_build_components and fetched_version != 'N/A':
-                last_build_version = last_build_components[comp_id].get('version', 'N/A')
-                # If versions differ, mark as updated
-                if last_build_version != 'N/A' and fetched_version != last_build_version:
-                    display_name = display_name + " *"
-                    is_updated = True
-
-            # Insert with appropriate tag
-            item_id = self.gui.builder_preview.insert('', END, values=(display_name,
-                                                                        version,
-                                                                        comp.get('category', 'Unknown')))
-            if is_updated:
-                self.gui.builder_preview.item(item_id, tags=('updated',))
-
-        # Update label
-        count = len(selected)
-        self.gui.selection_label.config(text=f"Selected: {count} components")
-    
-    def builder_select_all(self):
-        """Select all visible components"""
-        for item in self.gui.builder_list.get_children():
-            self.gui.builder_list.selection_add(item)
-        self.update_builder_preview()
-    
-    def builder_clear_selection(self):
-        """Clear all selections"""
-        self.gui.builder_list.selection_remove(self.gui.builder_list.selection())
-        self.update_builder_preview()
-    
-    def show_component_details(self):
-        """Show detailed component information"""
-        selected = self.gui.builder_list.selection()
-        if not selected:
-            self.gui.show_custom_info("No Selection", "Please select at least one component to view details.")
-            return
-        
-        # Create details window
-        details_window = ttk.Toplevel(self.gui.root)
-        details_window.title("Component Details")
-        details_window.geometry("700x500")
-        details_window.transient(self.gui.root)
-        
-        # Create table
-        table_frame = ttk.Frame(details_window, padding=10)
-        table_frame.pack(fill=BOTH, expand=True)
-        
-        tree = ttk.Treeview(table_frame, columns=('Name', 'Version', 'Category', 'Description'),
-                              show='headings', bootstyle="primary")
-        
-        tree.heading('Name', text='Component Name')
-        tree.heading('Version', text='Version')
-        tree.heading('Category', text='Category')
-        tree.heading('Description', text='Description')
-        
-        tree.column('Name', width=150)
-        tree.column('Version', width=80)
-        tree.column('Category', width=120)
-        tree.column('Description', width=300)
-        
-        scroll = ttk.Scrollbar(table_frame, orient=VERTICAL, command=tree.yview, bootstyle="primary-round")
-        tree.configure(yscrollcommand=scroll.set)
-        
-        scroll.pack(side=RIGHT, fill=Y)
-        tree.pack(fill=BOTH, expand=True)
-        
-        # Populate
-        for comp_id in selected:
-            comp = self.gui.components_data.get(comp_id, {})
-            version = comp.get('asset_info', {}).get('version', 'N/A')
-            desc = comp.get('description', 'No description')
-            if isinstance(desc, dict):
-                desc = desc.get('descriptions', {}).get('en', 'No description')
-            tree.insert('', END, values=(comp.get('name', comp_id),
-                                          version,
-                                          comp.get('category', 'Unknown'), 
-                                          desc))
-        
-        # Close button
-        ttk.Button(details_window, text="Close", command=details_window.destroy,
-                   bootstyle="secondary").pack(pady=10)
-
-        # Center the window using the main GUI's helper
-        self.gui.center_window(details_window) 
-
-    def build_pack(self):
-        """Build the HATS pack"""
-        selected = self.gui.builder_list.selection()
-        if not selected:
-            self.gui.show_custom_info("No Selection", "Please select at least one component to build.")
-            return
-
-        # Ask where to save - use temporary name, we'll rename after computing hash
-        now = datetime.datetime.now(datetime.timezone.utc)
-        date_str = now.strftime("%d%m%Y")
-        initial_file = f"HATS-{date_str}-building.zip"
-
-        output_file = filedialog.asksaveasfilename(
-            title="Save HATS Pack",
-            defaultextension=".zip",
-            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")],
-            initialfile=initial_file
-        )
-
-        if not output_file:
-            return
-
-        # Get build comment
-        build_comment = self.gui.build_comment.get().strip()
-
-        # Show progress window
-        self.show_build_progress(selected, output_file, build_comment)
-    
     def fetch_github_versions(self):
-        """Fetch latest versions from GitHub for components without a specific version set"""
-        # Check if any components are selected
-        selected = self.gui.builder_list.selection()
+        """Fetch latest versions for CHECKED components"""
+        # ADAPTATION: Use checked_components instead of treeview selection
+        selected = list(self.checked_components)
         if not selected:
-            self.gui.show_custom_info("No Selection", "Please select at least one component to fetch versions.")
+            self.gui.show_custom_info("No Selection", "Please check at least one component to fetch versions.")
             return
 
         if self.fetch_button:
             self.fetch_button.config(state=DISABLED)
-
         # Create progress window
         progress_window = ttk.Toplevel(self.gui.root)
         progress_window.title("Fetching Versions")
@@ -528,7 +443,6 @@ class PackBuilder:
         close_btn = ttk.Button(progress_window, text="Close", state=DISABLED,
                                command=progress_window.destroy, bootstyle="primary")
         close_btn.pack(pady=10)
-
         # Run the fetch in a separate thread
         thread = threading.Thread(target=self._worker_fetch_versions,
                                   args=(progress_window, log_text, progress, close_btn, selected), daemon=True)
@@ -551,9 +465,11 @@ class PackBuilder:
         for cid in selected_ids:
             cdata = self.gui.components_data.get(cid)
             if not cdata: continue
+
             # Skip manual versions (no need to fetch)
             if cid in self.gui.manual_versions:
                 continue
+    
             tasks.append((cid, cdata))
 
         total_tasks = len(tasks)
@@ -581,7 +497,7 @@ class PackBuilder:
                 # 2. GitHub Release Strategy (Finds latest)
                 elif source_type == 'github_release' and cdata.get('repo'):
                     repo = cdata['repo']
-                    api_url = f"https://api.github.com/repos/{repo}/releases?per_page=1"
+                    api_url = f"https://api.github.com/repos/{repo}/releases?per_page=10"
 
                     req = urllib.request.Request(api_url)
                     req.add_header('Accept', 'application/vnd.github.v3+json')
@@ -593,15 +509,23 @@ class PackBuilder:
 
                     with urllib.request.urlopen(req, timeout=10, context=SSL_CONTEXT) as response:
                         if response.status == 200:
-                            data = json.loads(response.read().decode())
-                            if data and isinstance(data, list):
-                                latest = max(data, key=lambda r: r.get("published_at", ""))
-                                return cid, latest.get("tag_name"), None
+                            releases = json.loads(response.read().decode())
+                            if releases:
+                                # Find the release with the most recent 'published_at' date
+                                latest_release = max(
+                                    releases,
+                                    key=lambda r: r.get("published_at", "") or ""
+                                )
+                                latest_version = latest_release.get("tag_name")
+                                
+                                if latest_version:
+                                    return cid, latest_version, None
+                                return cid, None, "No version tag found"
                             return cid, None, "No releases found"
                         else:
                             return cid, None, f"HTTP {response.status}"
 
-                # 3. GitHub Tag Strategy (Pinned Version) [OPTIMIZED FEATURE]
+                # 3. GitHub Tag Strategy
                 elif source_type == 'github_tag':
                     # For pinned tags, the "latest" version is simply the tag itself.
                     # We return it directly without an API call.
@@ -675,9 +599,33 @@ class PackBuilder:
                 except: pass
 
         self.gui.root.after(100, on_complete)
+        
+    def build_pack(self):
+        """Build the HATS pack using checked components"""
+        # ADAPTATION: Use checked_components instead of treeview selection
+        selected = list(self.checked_components)
+        if not selected:
+            self.gui.show_custom_info("No Selection", "Please select at least one component to build.")
+            return
 
-    def show_build_progress(self, selected, output_file, build_comment=""):
+        now = datetime.datetime.now(datetime.timezone.utc)
+        date_str = now.strftime("%d%m%Y")
+        initial_file = f"HATS-{date_str}-building.zip"
+
+        output_file = filedialog.asksaveasfilename(
+            title="Save HATS Pack",
+            defaultextension=".zip",
+            filetypes=[("ZIP files", "*.zip"), ("All files", "*.*")],
+            initialfile=initial_file
+        )
+
+        if not output_file:
+            return
+
+        build_comment = self.gui.build_comment.get().strip()
+        self.show_build_progress(selected, output_file, build_comment)
         """Show build progress window"""
+    def show_build_progress(self, selected, output_file, build_comment=""):
         progress_window = ttk.Toplevel(self.gui.root)
         progress_window.title("Building Pack")
         progress_window.geometry("700x700")
@@ -698,7 +646,6 @@ class PackBuilder:
         close_btn = ttk.Button(progress_window, text="Close", state=DISABLED,
                                command=progress_window.destroy, bootstyle="primary")
         close_btn.pack(pady=10)
-
         # Run build in a separate thread
         thread = threading.Thread(target=self._worker_build_pack, 
                                   args=(selected, output_file, progress_window, log_text, progress, close_btn, build_comment), 
@@ -706,7 +653,7 @@ class PackBuilder:
         thread.start()
 
     def _worker_build_pack(self, selected_ids, output_file, window, log_widget, progress_bar, close_button, build_comment=""):
-        """Worker thread to build the HATS pack (Parallel Version)."""
+        """Worker thread to build the HATS pack (Clean Log Version)."""
 
         # Thread-safe logging helper
         def log(message):
@@ -747,7 +694,9 @@ class PackBuilder:
             download_dir.mkdir()
             staging_dir.mkdir()
 
-            # --- PHASE 1: PARALLEL DOWNLOADS ---
+            # ==============================================================================
+            # PHASE 1: PARALLEL DOWNLOADS
+            # ==============================================================================
             log(f"--- PHASE 1: Downloading {total_components} Components ---")
             log("(Please wait, this may take a moment based on your internet speed...)\n")
             update_progress(0, 'indeterminate')
@@ -759,7 +708,8 @@ class PackBuilder:
                 # Version logic
                 manual_version = self.gui.manual_versions.get(comp_id, "")
                 version_to_build = manual_version if manual_version else comp_data.get('asset_info', {}).get('version', 'N/A')
-
+    
+                # 1. Log Start
                 log(f"⏳ [{comp_data['name']}] Downloading ({version_to_build})...")
 
                 asset_configs = self._get_asset_configs(comp_data)
@@ -767,7 +717,7 @@ class PackBuilder:
 
                 downloaded_assets = []
 
-                # Silent logger for parallel threads to avoid clutter
+                # Define a silent logger that only lets CRITICAL ERRORS through
                 def silent_log(msg):
                     if any(x in msg for x in ["❌", "⚠️", "Error", "Failed", "HTTP"]):
                         log(f"  [{comp_data['name']}] {msg.strip()}")
@@ -777,18 +727,21 @@ class PackBuilder:
                         asset_path = self._download_asset(
                             comp_data,
                             download_dir,
-                            silent_log,
+                            silent_log, # Use silent logger
                             pattern=asset_config.get('pattern'),
                             version=version_to_build
                         )
 
-                        if not asset_path: return False, "Download failed (check log)"
+                        if not asset_path: return False, "Download failed (check log for details)"
                         downloaded_assets.append((asset_path, asset_config.get('processing_steps', [])))
 
                     except Exception as e:
                         return False, f"Exception: {e}"
 
+                # Calculate total size for the "Done" message
                 total_size_mb = sum(p[0].stat().st_size for p in downloaded_assets) / (1024*1024)
+    
+                # 2. Log Finish
                 log(f"✅ [{comp_data['name']}] Ready ({total_size_mb:.2f} MB)")
 
                 return True, {
@@ -798,7 +751,7 @@ class PackBuilder:
                     'assets': downloaded_assets
                 }
 
-            # Execute Parallel Downloads [NEW FEATURE]
+            # Execute Downloads
             with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
                 future_to_id = {executor.submit(download_single_component, cid): cid for cid in selected_ids}
 
@@ -829,7 +782,9 @@ class PackBuilder:
                 self.gui.root.after(100, lambda: [close_button.config(state=NORMAL), self.gui.show_custom_info("Build Failed", "Downloads failed.", parent=window)])
                 return
 
-            # --- PHASE 2: SEQUENTIAL PROCESSING ---
+            # ==============================================================================
+            # PHASE 2: SEQUENTIAL PROCESSING
+            # ==============================================================================
             log(f"\n\n--- PHASE 2: Processing & Extracting ---")
 
             current_step = 0
@@ -839,13 +794,16 @@ class PackBuilder:
                 if not result: continue
 
                 comp_data = result['comp_data']
-                log(f"\n⚙️ {comp_data['name']}")
 
+                # Cleaner Processing Header
+                log(f"\n⚙️ {comp_data['name']}")
+    
                 all_component_files = []
                 component_failed = False
 
                 for asset_path, steps in result['assets']:
                     try:
+                        # We use a lambda to indent the processing steps
                         indent_log = lambda m: log(f"   {m.strip()}")
                         processed_files = self._process_asset(asset_path, comp_data, staging_dir, indent_log, processing_steps=steps)
 
@@ -878,15 +836,19 @@ class PackBuilder:
                 current_step += 1
                 update_progress(40 + ((current_step / total_components) * 50))
 
-            # --- PHASE 3: FINALIZING ---
+            # ==============================================================================
+            # PHASE 3: FINALIZING
+            # ==============================================================================
             log("\n\n--- PHASE 3: Finalizing Pack ---")
 
+            # Skeleton
             skeleton_path = Path("assets/skeleton.zip")
             if skeleton_path.exists():
                 log("📦 Adding base skeleton...")
                 with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
                     zip_ref.extractall(staging_dir)
 
+            # Hash & Manifest
             log("📝 Generating manifest and summary...")
             selected_components = {cid: self.gui.components_data[cid] for cid in selected_ids}
             manifest['content_hash'] = self.compute_content_hash(selected_components)
@@ -902,6 +864,7 @@ class PackBuilder:
 
             self._generate_metadata_file(staging_dir, final_base_name, manifest, build_comment)
 
+            # Zip
             log(f"💾 Compressing to {final_base_name}.zip...")
             update_progress(95)
             try:
@@ -927,32 +890,56 @@ class PackBuilder:
             self.gui.prepare_for_install(str(final_output_file)),
             self.gui.show_custom_info("Build Complete", f"HATS Pack successfully built!\n\nSaved to:\n{final_output_file}", parent=window, height=320)
         ])
+        
+    def _generate_metadata_file(self, staging_dir, base_name, manifest, build_comment):
+        """Helper to generate the text summary file inside the pack"""
+        metadata_path = staging_dir / f"{base_name}.txt"
+        last_build_components = self.gui.last_build_data.get('components', {})
 
-    def _generate_metadata_file(self, staging_dir, base_name, manifest, comment):
-        """Generate a readable text file with pack details"""
-        info_path = staging_dir / "pack_info.txt"
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            f.write("# HATS Pack Summary\n\n")
+            f.write(f"**Generated on:** {datetime.datetime.now(datetime.timezone.utc).strftime('%d-%m-%Y %H:%M:%S')} UTC  \n")
+            f.write(f"**Builder Version:** {manifest.get('builder_version', self.gui.VERSION)}-GUI  \n")
 
-        try:
-            with open(info_path, 'w', encoding='utf-8') as f:
-                f.write(f"HATS Pack Info\n")
-                f.write(f"==============\n\n")
-                f.write(f"Name: {base_name}\n")
-                f.write(f"Date: {manifest['build_date']}\n")
-                f.write(f"Builder Version: {manifest['builder_version']}\n")
-                f.write(f"Content Hash: {manifest['content_hash']}\n")
-                f.write(f"Firmware Support: {manifest.get('supported_firmware', 'N/A')}\n")
+            if manifest.get('content_hash'):
+                f.write(f"**Content Hash:** {manifest['content_hash']}  \n")
 
-                if comment:
-                    f.write(f"\nComment:\n{comment}\n")
+            supported_fw = manifest.get('supported_firmware', 'N/A')
+            if supported_fw != "N/A":
+                f.write(f"**Supported Firmware:** Up to {supported_fw}  \n")
 
-                f.write(f"\nComponents:\n")
-                f.write(f"-----------\n")
+            f.write("\n---\n\n")
 
-                for cid, data in manifest.get('components', {}).items():
-                    f.write(f"- {data['name']} ({data['version']})\n")
+            version_changes = []
+            for comp_id, comp_data in manifest['components'].items():
+                last_comp = last_build_components.get(comp_id)
+                if last_comp and last_comp.get('version') != comp_data['version']:
+                    version_changes.append(f"- **{comp_data['name']}:** {last_comp.get('version')} → **{comp_data['version']}**")
 
-        except Exception as e:
-            print(f"Error generating metadata file: {e}")
+            if version_changes or build_comment:
+                f.write("## CHANGELOG\n\n")
+                if build_comment:
+                    f.write(f"### Build Notes:\n{build_comment}\n\n")
+                if version_changes:
+                    f.write("### Version Updates:\n")
+                    for change in version_changes:
+                        f.write(f"{change}\n")
+                f.write("\n---\n\n")
+
+            f.write("## INCLUDED COMPONENTS\n")
+            components_by_category = {}
+            for comp_id, comp_data in manifest['components'].items():
+                category = comp_data.get('category', 'Uncategorized')
+                if category not in components_by_category:
+                    components_by_category[category] = []
+                components_by_category[category].append(comp_data)
+
+            for category, components in sorted(components_by_category.items()):
+                f.write(f"\n### {category.upper()}\n")
+                for comp in sorted(components, key=lambda x: x['name']):
+                    f.write(f"- **{comp['name']}** ({comp['version']})\n")
+
+            f.write("\n---\nGenerated with HATSKit Pro Builder\n")
 
     def _get_asset_configs(self, comp_data):
         """
@@ -964,15 +951,80 @@ class PackBuilder:
         # New format: multiple assets
         if 'asset_patterns' in comp_data:
             return comp_data['asset_patterns']
-
         # Old format: single asset (convert to list for uniform processing)
         elif 'asset_pattern' in comp_data:
             return [{
                 'pattern': comp_data['asset_pattern'],
                 'processing_steps': comp_data.get('processing_steps', [])
             }]
-
         return []
+
+    def compute_content_hash(self, selected_components):
+        """Compute a content hash based on selected components and their versions."""
+        hasher = hashlib.sha1()
+        for comp_id in sorted(selected_components.keys()):
+            version = selected_components[comp_id].get('asset_info', {}).get('version', 'N/A')
+            hasher.update(f"{comp_id}:{version}".encode('utf-8'))
+        return hasher.hexdigest()[:7]
+
+    def extract_firmware_version_from_body(self, release_body):
+        """Extract supported firmware version from Atmosphere release body."""
+        if not release_body:
+            return "N/A"
+        pattern_1 = re.search(r'(?:support|support was added|HOS)\s*.*?(?:for|up to)\s*(\d+\.\d+\.\d+)',
+                             release_body, re.IGNORECASE)
+        if pattern_1:
+            return pattern_1.group(1)
+        match_2 = re.search(r'(?:HOS|firmware)\s*(\d+\.\d+\.\d+)', release_body, re.IGNORECASE)
+        if match_2:
+            return match_2.group(1)
+        match_3 = re.search(r'supports\s*up\s*to\s*(\d+\.\d+\.\d+)', release_body, re.IGNORECASE)
+        if match_3:
+            return match_3.group(1)
+        return "N/A"
+
+    def get_atmosphere_firmware_info(self, atmosphere_version, log=None):
+        """Fetch firmware info for a specific Atmosphere version."""
+        try:
+            api_url = f"https://api.github.com/repos/{self.ATMOSPHERE_REPO}/releases?per_page=3"
+            req = urllib.request.Request(api_url)
+            req.add_header('Accept', 'application/vnd.github.v3+json')
+            pat = self.gui.github_pat.get()
+            if pat:
+                req.add_header('Authorization', f'token {pat}')
+            if log:
+                log(f"  Fetching Atmosphere release info to determine supported firmware...")
+            with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as response:
+                releases = json.loads(response.read().decode())
+            clean_version = atmosphere_version.lstrip('v')
+            latest_known_fw = "N/A"
+            target_fw = "N/A"
+            content_hash = "N/A"
+            for release in releases:
+                tag = release.get('tag_name', '').lstrip('v')
+                body = release.get('body', '')
+                fw_found = self.extract_firmware_version_from_body(body)
+                if fw_found != "N/A":
+                    latest_known_fw = fw_found
+                    current_fw = fw_found
+                else:
+                    current_fw = latest_known_fw
+                if tag == clean_version:
+                    target_fw = current_fw
+                    hash_match = re.search(r'-([a-f0-9]{7,})', release.get('tag_name', ''))
+                    if hash_match:
+                        content_hash = hash_match.group(1)[:7]
+                    break
+            if log:
+                if target_fw != "N/A":
+                    log(f"  ✅ Atmosphere {atmosphere_version} supports firmware up to {target_fw}")
+                else:
+                    log(f"  ⚠️ Could not determine firmware support for Atmosphere {atmosphere_version}")
+            return target_fw, content_hash
+        except Exception as e:
+            if log:
+                log(f"  ⚠️ Error fetching Atmosphere firmware info: {e}")
+            return "N/A", "N/A"
 
     def _download_asset(self, comp_data, temp_dir, log, pattern=None, version=None):
         """
@@ -993,27 +1045,22 @@ class PackBuilder:
             if not repo or not pattern:
                 log("  ❌ Invalid component: missing 'repo' or 'asset_pattern'.")
                 return None
-
             # Fetch releases - more if looking for specific version
             per_page = 10 if version and version != 'N/A' else 5
             api_url = f"https://api.github.com/repos/{repo}/releases?per_page={per_page}"
-
             if version and version != 'N/A':
                 log(f"  Fetching release info for version {version}...")
             else:
                 log(f"  Fetching latest release info...")
-
             req = urllib.request.Request(api_url)
             pat = self.gui.github_pat.get()
             if pat:
                 req.add_header('Authorization', f'token {pat}')
-
             try:
                 with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as response:
                     releases = json.loads(response.read().decode())
                     if releases:
                         target_release = None
-
                         # If specific version requested, find it
                         if version and version != 'N/A':
                             for release in releases:
@@ -1023,27 +1070,22 @@ class PackBuilder:
                                     target_release = release
                                     log(f"  ✅ Found release: {tag}")
                                     break
-
                             if not target_release:
                                 log(f"  ❌ Version '{version}' not found in recent releases.")
-                                log(f"     Available versions: {', '.join([r.get('tag_name', 'N/A') for r in releases[:5]])}")
                                 return None
                         else:
                             # No specific version, use latest
                             target_release = releases[0]
-
                         # Download asset from target release
                         for asset in target_release.get('assets', []):
                             if fnmatch.fnmatch(asset['name'].lower(), pattern.lower()):
                                 url = asset['browser_download_url']
                                 filename = Path(temp_dir) / asset['name']
                                 asset_size = asset.get('size', 0)
-
                                 log(f"  Downloading: {url}")
                                 if asset_size > 0:
                                     size_mb = asset_size / (1024 * 1024)
                                     log(f"  Size: {size_mb:.2f} MB")
-
                                 # Use improved download method with progress
                                 success = self._download_file_with_progress(url, filename, log)
                                 if success:
@@ -1063,36 +1105,28 @@ class PackBuilder:
             tag = comp_data.get("tag")
             if not pattern:
                 pattern = comp_data.get("asset_pattern")
-
             if not repo or not tag or not pattern:
                 log("  ❌ Invalid github_tag component configuration.")
                 return None
-
             api_url = f"https://api.github.com/repos/{repo}/releases/tags/{tag}"
             log(f"  Fetching tagged release: {tag}")
-
             req = urllib.request.Request(api_url)
             pat = self.gui.github_pat.get()
             if pat:
                 req.add_header("Authorization", f"token {pat}")
-
             try:
                 with urllib.request.urlopen(req, timeout=15, context=SSL_CONTEXT) as response:
                     release = json.loads(response.read().decode())
-
                 for asset in release.get("assets", []):
                     if fnmatch.fnmatch(asset["name"].lower(), pattern.lower()):
                         url = asset["browser_download_url"]
                         filename = Path(temp_dir) / asset["name"]
-
                         log(f"  Downloading: {url}")
                         if self._download_file_with_progress(url, filename, log):
                             log(f"  ✅ Downloaded to: {filename.name}")
                             return filename
-
                 log(f"  ❌ Asset matching '{pattern}' not found in tag {tag}")
                 return None
-
             except Exception as e:
                 log(f"  ❌ Failed to fetch github tag '{tag}': {e}")
                 return None
@@ -1101,12 +1135,10 @@ class PackBuilder:
             if not url:
                 log("  ❌ Invalid component: missing 'repo' (URL) for direct_url type.")
                 return None
-
             # Extract filename from URL
             filename = Path(url).name
             if not filename:
                 filename = "downloaded_file"
-
             filepath = Path(temp_dir) / filename
             log(f"  Downloading from direct URL: {url}")
             try:
@@ -1114,7 +1146,6 @@ class PackBuilder:
                 success = self._download_file_with_progress(url, filepath, log)
                 if success:
                     log(f"  ✅ Downloaded to: {filename}")
-
                     # Extract version from URL (e.g., /658/ -> 658, /v1.2.3/ -> v1.2.3)
                     # Look for patterns like /number/ or /vX.X.X/ in the URL path
                     version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
@@ -1125,7 +1156,6 @@ class PackBuilder:
                         if 'asset_info' not in comp_data:
                             comp_data['asset_info'] = {}
                         comp_data['asset_info']['version'] = extracted_version
-
                     return filepath
                 else:
                     log(f"  ❌ Download failed")
@@ -1155,21 +1185,17 @@ class PackBuilder:
             try:
                 if attempt > 0:
                     log(f"  ⟳ Retry attempt {attempt}/{retries}...")
-
                 # Create request with timeout
                 req = urllib.request.Request(url)
                 req.add_header('User-Agent', 'HATSKit-Pro-Builder')
-
                 # Open connection with timeout
                 with urllib.request.urlopen(req, timeout=timeout) as response:
                     # Get file size if available
                     file_size = int(response.headers.get('Content-Length', 0))
-
                     # Download in chunks with progress
                     chunk_size = 8192  # 8 KB chunks
                     downloaded = 0
-                    last_percent = -1
-
+                    # last_percent = -1  # Unused
                     with open(filepath, 'wb') as f:
                         while True:
                             chunk = response.read(chunk_size)
@@ -1177,23 +1203,13 @@ class PackBuilder:
                                 break
                             f.write(chunk)
                             downloaded += len(chunk)
-
-                            # Log progress every 10%
-                            if file_size > 0:
-                                percent = int((downloaded / file_size) * 100)
-                                if percent >= last_percent + 10 and percent <= 100:
-                                    log(f"  ⬇ {percent}% ({downloaded / (1024*1024):.1f} MB / {file_size / (1024*1024):.1f} MB)")
-                                    last_percent = percent
-
                     # Verify download
                     if file_size > 0 and downloaded < file_size:
                         log(f"  ⚠️ Incomplete download: {downloaded} / {file_size} bytes")
                         if attempt < retries:
                             continue
                         return False
-
                     return True
-
             except urllib.error.URLError as e:
                 log(f"  ⚠️ Download error: {e.reason}")
                 if attempt < retries:
@@ -1208,7 +1224,6 @@ class PackBuilder:
                     time.sleep(2)
                     continue
                 return False
-
         return False
 
     def _process_asset(self, asset_path, comp_data, staging_dir, log, processing_steps=None):
@@ -1227,10 +1242,8 @@ class PackBuilder:
         else:
             steps = processing_steps
         all_processed_files = []
-
         if not steps: # If no steps, assume it's a simple zip to root
             steps = [{"action": "unzip_to_root"}]
-
         for step in steps:
             action = step.get('action')
             log(f"  - Executing step: {action}")
@@ -1246,10 +1259,8 @@ class PackBuilder:
                 if not target_path_str:
                     log("    ❌ 'unzip_to_path' is missing 'target_path'.")
                     continue
-
                 target_dir = staging_dir / target_path_str
                 target_dir.mkdir(parents=True, exist_ok=True)
-
                 with zipfile.ZipFile(asset_path, 'r') as zip_ref:
                     zip_ref.extractall(target_dir)
                     # Record all extracted files for the manifest
@@ -1262,15 +1273,12 @@ class PackBuilder:
                 if not target_dir_str:
                     log("    ❌ 'copy_file' is missing 'target_path'.")
                     continue
-
                 # target_path is a directory, use original filename
                 target_dir = staging_dir / target_dir_str
                 target_dir.mkdir(parents=True, exist_ok=True)
-
                 # Get the filename from the downloaded asset
                 filename = asset_path.name
                 target_path = target_dir / filename
-
                 shutil.copy(asset_path, target_path)
                 all_processed_files.append(target_path)
                 log(f"    ✅ Copied to: {target_path.relative_to(staging_dir)}")
@@ -1281,7 +1289,6 @@ class PackBuilder:
                 if not pattern or not target_name:
                     log("    ❌ 'find_and_rename' is missing 'source_file_pattern' or 'target_filename'.")
                     continue
-                
                 found = False
                 for f in staging_dir.rglob(pattern):
                     target_folder = staging_dir / target_folder_str
@@ -1299,7 +1306,6 @@ class PackBuilder:
                 if not path_str:
                     log("    ❌ 'delete_file' is missing 'path'.")
                     continue
-                
                 found = False
                 # Use rglob to find matching files/folders
                 for item_to_delete in staging_dir.rglob(path_str):
@@ -1320,20 +1326,15 @@ class PackBuilder:
                 if not pattern:
                     log("    ❌ 'find_and_copy' is missing 'source_file_pattern'.")
                     continue
-
                 # Extract ZIP to temp directory to inspect contents
                 with tempfile.TemporaryDirectory(dir=asset_path.parent) as extract_dir:
                     extract_dir_path = Path(extract_dir)
-
                     with zipfile.ZipFile(asset_path, 'r') as zip_ref:
                         zip_ref.extractall(extract_dir_path)
-
                         # Track newest file per filename
                         newest_by_name = {}
-
                         for f in extract_dir_path.rglob(pattern):
                             zip_path = f.relative_to(extract_dir_path).as_posix()
-
                             try:
                                 info = zip_ref.getinfo(zip_path)
                                 # ZipInfo.date_time = (Y, M, D, H, M, S)
@@ -1344,20 +1345,16 @@ class PackBuilder:
                                     mtime = f.stat().st_mtime
                                 except OSError:
                                     continue
-
                             current = newest_by_name.get(f.name)
                             if current is None or mtime > current[1]:
                                 newest_by_name[f.name] = (f, mtime)
-
                     if not newest_by_name:
                         log(f"    ⚠️ Could not find file matching '{pattern}' in the archive.")
                     else:
                         target_folder = staging_dir / target_folder_str
                         target_folder.mkdir(parents=True, exist_ok=True)
-
                         for fname, (src_path, _) in newest_by_name.items():
                             dest = target_folder / fname
-
                             if src_path.is_dir():
                                 shutil.copytree(src_path, dest, dirs_exist_ok=True)
                                 for f in dest.rglob('*'):
@@ -1368,10 +1365,8 @@ class PackBuilder:
                                 shutil.copy(src_path, dest)
                                 all_processed_files.append(dest)
                                 log(f"    ✅ Copied newest '{fname}' to '{dest.relative_to(staging_dir)}'")
-
             elif action == 'unzip_subfolder_to_root':
                 subfolder_name = step.get('subfolder_name', '').strip('/')
-
                 with zipfile.ZipFile(asset_path, 'r') as zip_ref:
                     if subfolder_name:
                         source_folder = subfolder_name.rstrip('/') + '/'
@@ -1379,7 +1374,6 @@ class PackBuilder:
                     else:
                         # Auto-detect single top-level directory
                         top_level_dirs = {name.split('/')[0] for name in zip_ref.namelist() if '/' in name}
-
                         if len(top_level_dirs) == 1:
                             source_folder = top_level_dirs.pop() + '/'
                             log(f"    ✅ Auto-detected source folder: '{source_folder.strip('/')}'")
@@ -1387,60 +1381,21 @@ class PackBuilder:
                             log("    ❌ 'unzip_subfolder_to_root' failed: No subfolders found in the archive.")
                             continue
                         else:
-                            log(
-                                "    ❌ 'unzip_subfolder_to_root' failed: "
-                                f"Multiple root folders found ({', '.join(top_level_dirs)}). "
-                                "Specify 'subfolder_name'."
-                            )
+                            log(f"    ❌ 'unzip_subfolder_to_root' failed: Multiple root folders found ({', '.join(top_level_dirs)}).")
                             continue
-
                     extracted = False
-
                     for member in zip_ref.infolist():
                         if member.filename.startswith(source_folder):
                             target_path = member.filename[len(source_folder):]
                             if not target_path:
                                 continue
-
                             member.filename = target_path
                             zip_ref.extract(member, staging_dir)
-
                             if not member.is_dir():
                                 all_processed_files.append(staging_dir / target_path)
                                 extracted = True
-
                     if not extracted:
                         log(f"    ⚠️ No files extracted from '{source_folder}'")
-
-                with zipfile.ZipFile(asset_path, 'r') as zip_ref:
-                    # Automatically find the single top-level directory
-                    top_level_dirs = {name.split('/')[0] for name in zip_ref.namelist() if '/' in name}
-                    
-                    if len(top_level_dirs) == 1:
-                        found_folder = top_level_dirs.pop() + '/'
-                        log(f"    ✅ Found single source folder: '{found_folder.strip('/')}'")
-                    elif len(top_level_dirs) == 0:
-                        log("    ❌ 'unzip_subfolder_to_root' failed: No subfolders found in the archive.")
-                        continue
-                    else:
-                        log(f"    ❌ 'unzip_subfolder_to_root' failed: Ambiguous archive with multiple root folders: {', '.join(top_level_dirs)}")
-                        continue
-
-                    # Extract contents of the found folder
-                    for member in zip_ref.infolist():
-                        if member.filename.startswith(found_folder):
-                            # Calculate the new path by stripping the source folder prefix
-                            target_path = member.filename.replace(found_folder, '', 1)
-                            if not target_path: # Skip the root folder itself
-                                continue
-
-                            member.filename = target_path # Temporarily modify member for extraction
-                            zip_ref.extract(member, staging_dir)
-                            
-                            # Record the final path in the staging directory for the manifest
-                            if not member.is_dir():
-                                all_processed_files.append(staging_dir / target_path)
             else:
                 log(f"    ⚠️ Unimplemented action: {action}")
-        
         return all_processed_files
