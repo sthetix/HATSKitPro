@@ -21,6 +21,7 @@ import re
 import ssl
 import certifi
 import concurrent.futures
+import os
 
 # Global SSL context using certifi CA bundle (macOS fix)
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
@@ -37,6 +38,9 @@ class PackBuilder:
     CHECKED_ICON = "☑ "
     UNCHECKED_ICON = "☐ "
 
+    # New file for presets
+    PROFILES_FILE = "profiles.json"
+
     def __init__(self, main_gui):
         """Initialize with reference to main GUI"""
         self.gui = main_gui
@@ -45,9 +49,18 @@ class PackBuilder:
         # Track Checked Components (Set of Component IDs)
         self.checked_components = set()
 
+        # Dictionary to store loaded profiles
+        self.profiles = {}
+
+        # Load presets on startup
+        self.load_profiles()
+
         # Connect event handlers to UI widgets
         self.connect_events()
-    
+
+        # Bind Profile Selection
+        self.gui.profile_combo.bind("<<ComboboxSelected>>", self.on_profile_selected)
+
     def connect_events(self):
         """Connect event handlers to UI elements"""
         # Search and filter
@@ -91,6 +104,150 @@ class PackBuilder:
                 find_buttons(child)
         
         find_buttons(self.gui.builder_tab)
+
+    def save_last_used_profile(self):
+        """Saves current selection to profiles.json as 'Last Used'"""
+        self.profiles["Last Used"] = list(self.checked_components)
+
+        try:
+            with open(self.PROFILES_FILE, 'w') as f:
+                json.dump(self.profiles, f, indent=4)
+        except Exception as e:
+            print(f"Failed to save profiles: {e}")
+
+    def load_profiles(self):
+        """Load profiles from JSON (Pure 'Last Used' logic)"""
+        defaults = {
+            "Minimal": ["atmosphere", "hekate"],
+            "Standard": ["Lockpick_RCM_Pro", "status_monitor_overlay", "linkalho", "quick_reboot_app", "quick_reboot_ovl", "sys-clk-base", "atmosphere", "sysmodules_overlay", "sphaira", "ultrahand_overlay", "ftpd", "edizon_overlay", "hekate", "jksv", "dns_mitm_manager", "dbi", "sys_patch", "prodinfo_gen", "tinwoo", "sys-clk-overlay", "quickntp"],
+            "Full": []
+        }
+
+        if os.path.exists(self.PROFILES_FILE):
+            try:
+                with open(self.PROFILES_FILE, 'r') as f:
+                    self.profiles = json.load(f)
+            except:
+                self.profiles = defaults.copy()
+        else:
+            self.profiles = defaults.copy()
+
+        self._update_profile_combo()
+
+    def _update_profile_combo(self):
+        """Refresh dropdown and set default selection"""
+        names = list(self.profiles.keys())
+
+        # Ensure "Last Used" is at the top
+        if "Last Used" in names:
+            names.remove("Last Used")
+            names.sort()
+            names.insert(0, "Last Used")
+        else:
+            names.sort()
+
+        self.gui.profile_combo['values'] = names
+
+        # Default to "Last Used" if it exists
+        if "Last Used" in names:
+            self.gui.profile_combo.set("Last Used")
+        elif names:
+            self.gui.profile_combo.set(names[0])
+
+    def on_profile_selected(self, event):
+        """Apply the selected profile"""
+        name = self.gui.profile_combo.get()
+        if name not in self.profiles: return
+
+        # Logic for "Full" (if empty list, select all visible in components.json)
+        target_components = self.profiles[name]
+
+        self.checked_components.clear()
+
+        if name == "Full" and not target_components:
+             # If "Full" is defined as empty list in defaults, select all known components
+             for cid in self.gui.components_data:
+                 self.checked_components.add(cid)
+        else:
+            for cid in target_components:
+                # Only add if it exists in current components.json
+                if cid in self.gui.components_data:
+                    self.checked_components.add(cid)
+
+        self.filter_builder_components()
+
+    def save_current_profile(self):
+        """Save current selection as a new profile (Custom Dialog)"""
+        if not self.checked_components:
+            self.gui.show_custom_info("No Selection", "Please select at least one component to save.")
+            return
+
+        # Create a custom styled dialog instead of system default
+        dialog = ttk.Toplevel(self.gui.root)
+        dialog.title("Save Preset")
+        dialog.geometry("400x180")
+        dialog.transient(self.gui.root)
+        dialog.grab_set() # Make modal
+
+        content = ttk.Frame(dialog, padding=20)
+        content.pack(fill=BOTH, expand=True)
+
+        ttk.Label(content, text="Enter a name for this preset:", font=('Segoe UI', 10)).pack(anchor=W, pady=(0, 10))
+
+        name_var = ttk.StringVar()
+        entry = ttk.Entry(content, textvariable=name_var)
+        entry.pack(fill=X, pady=(0, 20))
+        entry.focus() # Auto-focus input
+
+        btn_frame = ttk.Frame(content)
+        btn_frame.pack(fill=X)
+
+        def on_save(event=None):
+            name = name_var.get().strip()
+            if not name:
+                return
+
+            # Prevent overwriting defaults
+            if name in ["Minimal", "Standard", "Full"]:
+                self.gui.show_custom_info("Protected", "Cannot overwrite default presets.", parent=dialog)
+                return
+
+            self.profiles[name] = list(self.checked_components)
+            self._save_profiles_to_disk()
+            self._update_profile_combo()
+            self.gui.profile_combo.set(name)
+            dialog.destroy()
+
+        entry.bind('<Return>', on_save) # Allow pressing Enter to save
+
+        ttk.Button(btn_frame, text="Save", bootstyle="info", command=on_save).pack(side=RIGHT, padx=5)
+        ttk.Button(btn_frame, text="Cancel", bootstyle="secondary", command=dialog.destroy).pack(side=RIGHT, padx=5)
+
+        self.gui.center_window(dialog)
+
+    def delete_current_profile(self):
+        """Delete the currently selected profile"""
+        name = self.gui.profile_combo.get()
+        if not name: return
+
+        if name in ["Minimal", "Standard", "Full"]:
+            self.gui.show_custom_info("Protected", "Cannot delete default profiles.")
+            return
+
+        # Use custom confirm dialog instead of system default
+        if self.gui.show_custom_confirm("Delete Preset", f"Are you sure you want to delete '{name}'?", style="danger"):
+            del self.profiles[name]
+            self._save_profiles_to_disk()
+            self._update_profile_combo()
+            self.gui.profile_combo.set('')
+
+    def _save_profiles_to_disk(self):
+        """Write to JSON"""
+        try:
+            with open(self.PROFILES_FILE, 'w') as f:
+                json.dump(self.profiles, f, indent=4)
+        except Exception as e:
+            print(f"Failed to save profiles: {e}")
 
     def populate_builder_list(self):
         """Populate builder list with components grouped by category"""
@@ -143,8 +300,13 @@ class PackBuilder:
                 is_checked = False
     
                 if initial_load:
-                    # Default flags in components.json
-                    if comp_data.get('default', False):
+                    # Priority 1: Resume "Last Used" session
+                    if "Last Used" in self.profiles:
+                        if comp_id in self.profiles["Last Used"]:
+                            is_checked = True
+
+                    # Priority 2: Default flags in components.json (First run ever)
+                    elif "Last Used" not in self.profiles and comp_data.get('default', False):
                         is_checked = True
                 else:
                     if comp_id in self.checked_components:
@@ -199,7 +361,8 @@ class PackBuilder:
 
         self.update_category_checkboxes()
         self.update_selection_count()
-    
+        self._check_for_preset_match() # Initial check
+
     def update_category_checkboxes(self):
         """Update visual state of category checkboxes based on their children"""
         for cat_id in self.gui.builder_list.get_children():
@@ -258,6 +421,31 @@ class PackBuilder:
         count = len(self.checked_components)
         self.gui.selection_label.config(text=f"Selected: {count} components")
 
+    def _check_for_preset_match(self):
+        """Check if current selection matches a preset and update dropdown"""
+        if not hasattr(self.gui, 'profile_combo'): return
+
+        current_set = self.checked_components
+        match = ''
+
+        # Get all available component IDs to handle the "Full" logic
+        all_comps = set(self.gui.components_data.keys())
+
+        for name, preset_comps in self.profiles.items():
+            # Handle "Full" special case (empty list in config means 'all')
+            if name == 'Full' and not preset_comps:
+                if current_set == all_comps:
+                    match = name
+                    break
+            else:
+                # Standard exact match comparison
+                if current_set == set(preset_comps):
+                    match = name
+                    break
+
+        # Update the dropdown text without triggering the selection event
+        self.gui.profile_combo.set(match)
+
     def toggle_component(self, comp_id):
         """Toggle a single component's checked state"""
         tags = list(self.gui.builder_list.item(comp_id, "tags"))
@@ -281,6 +469,7 @@ class PackBuilder:
         
         self.update_category_checkboxes()
         self.update_selection_count()
+        self._check_for_preset_match() # Check profile match
 
     def toggle_category(self, cat_id):
         """Toggle all components in a category"""
@@ -315,6 +504,7 @@ class PackBuilder:
 
         self.update_category_checkboxes()
         self.update_selection_count()
+        self._check_for_preset_match() # Check profile match
 
     def builder_select_all(self):
         """Check all visible components"""
@@ -324,12 +514,14 @@ class PackBuilder:
                 self.checked_components.add(child)
         
         self.filter_builder_components() 
+        self._check_for_preset_match() # Check profile match
 
     def builder_clear_selection(self):
         """Uncheck all components"""
         self.checked_components.clear()
         
         self.filter_builder_components() 
+        self._check_for_preset_match() # Will reset combo to blank
 
     def on_version_double_click(self, event):
         """Handle double-click on component to edit manual version"""
@@ -402,13 +594,12 @@ class PackBuilder:
             self.filter_builder_components()
             dialog.destroy()
 
-        ttk.Button(button_frame, text="Save", command=save_version,
-                   bootstyle="primary").pack(side=LEFT, padx=5)
-        ttk.Button(button_frame, text="Clear", command=clear_version,
-                   bootstyle="warning").pack(side=LEFT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=dialog.destroy,
                    bootstyle="secondary").pack(side=LEFT, padx=5)
-
+        ttk.Button(button_frame, text="Clear", command=clear_version,
+                   bootstyle="warning").pack(side=LEFT, padx=5)
+        ttk.Button(button_frame, text="Save", command=save_version,
+                   bootstyle="info").pack(side=LEFT, padx=5)
         self.gui.center_window(dialog)
 
     def fetch_github_versions(self):

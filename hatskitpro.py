@@ -101,6 +101,15 @@ class HATSKitProGUI:
         # Initialize System Config SD status display
         self.update_system_config_sd_status()
 
+        # Hook window close to save state
+        self.root.protocol("WM_DELETE_WINDOW", self.on_app_close)
+
+    def on_app_close(self):
+        """Save 'Last Used' profile and exit"""
+        if hasattr(self, 'builder'):
+            self.builder.save_last_used_profile()
+        self.root.destroy()
+                
     def load_config(self):
         """Load config.json and apply settings"""
         self.config_data = load_json_file(CONFIG_FILE) or {}
@@ -292,6 +301,26 @@ class HATSKitProGUI:
         main_list_frame = ttk.Labelframe(content_frame, text="Components List", padding="10")
         main_list_frame.pack(fill=BOTH, expand=True)
 
+        # Profile Toolbar
+        profile_frame = ttk.Frame(main_list_frame)
+        profile_frame.pack(fill=X, pady=(5, 10)) 
+        
+        # Label
+        ttk.Label(profile_frame, text="Preset:").pack(side=LEFT, padx=(0, 10))
+        
+        # Dropdown
+        self.profile_combo = ttk.Combobox(profile_frame, state="readonly", width=30)
+        self.profile_combo.pack(side=LEFT, padx=(0, 8))
+        
+        # Buttons
+        ttk.Button(profile_frame, text="Save", width=6, bootstyle="info", 
+                   command=lambda: self.builder.save_current_profile(),
+                   takefocus=False).pack(side=LEFT, padx=2)
+                   
+        ttk.Button(profile_frame, text="Delete", width=7, bootstyle="danger", 
+                   command=lambda: self.builder.delete_current_profile(),
+                   takefocus=False).pack(side=LEFT, padx=2)
+
         # Search box
         search_frame = ttk.Frame(main_list_frame)
         search_frame.pack(fill=X, pady=(0, 5))
@@ -371,7 +400,7 @@ class HATSKitProGUI:
         # Action buttons at bottom
         action_frame = ttk.Frame(self.builder_tab, padding="10")
         action_frame.pack(fill=X, padx=10, pady=5)
-        self.selection_label = ttk.Label(action_frame, text="Selected: 0 components", font=('Segoe UI', 10, 'bold'), bootstyle="info")
+        self.selection_label = ttk.Label(action_frame, text="Selected: 0 components", font=('Segoe UI', 12, 'bold'), bootstyle="info")
         self.selection_label.pack(side=LEFT, padx=(0, 20))
         button_container = ttk.Frame(action_frame)
         button_container.pack(side=RIGHT)
@@ -969,7 +998,7 @@ class HATSKitProGUI:
                   bootstyle="warning").pack(side=LEFT, padx=5)
 
     # ===== HELPER METHODS =====
-
+    
     def browse_sd_card_manager(self):
         """Browse for SD card from Manager tab (silent, no popup)"""
         from tkinter import filedialog
@@ -1067,7 +1096,7 @@ class HATSKitProGUI:
         # Update USB 3.0
         if settings['usb30_enabled'] is not None:
             self.usb30_var.set(settings['usb30_enabled'])
-
+        
         # Enable the toggle and set its active style
         self.usb30_toggle.config(state=NORMAL, bootstyle="success-round-toggle")
 
@@ -1378,7 +1407,7 @@ class HATSKitProGUI:
             pat_dialog.destroy() # Destroy the PAT dialog first
 
         ttk.Button(button_frame, text="Save", command=save_pat,
-                   bootstyle="primary").pack(side=LEFT, padx=5)
+                   bootstyle="info").pack(side=LEFT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=pat_dialog.destroy,
                    bootstyle="secondary").pack(side=LEFT, padx=5)
         
@@ -1436,7 +1465,7 @@ class HATSKitProGUI:
         current_size = self.config_data.get('download_chunk_size', 2097152)
         current_mb = current_size / (1024 * 1024)
         current_label = ttk.Label(info_frame, text=f"Current: {current_mb:.1f} MB",
-                                  font=('Segoe UI', 9, 'bold'), bootstyle="info")
+                                  font=('Segoe UI', 10, 'bold'), bootstyle="info")
         current_label.pack(pady=(5, 20))
 
         # Buttons
@@ -1455,7 +1484,7 @@ class HATSKitProGUI:
             download_dialog.destroy()
 
         ttk.Button(button_frame, text="Save", command=save_download_settings,
-                   bootstyle="primary").pack(side=LEFT, padx=5)
+                   bootstyle="info").pack(side=LEFT, padx=5)
         ttk.Button(button_frame, text="Cancel", command=download_dialog.destroy,
                    bootstyle="secondary").pack(side=LEFT, padx=5)
 
@@ -1466,18 +1495,18 @@ class HATSKitProGUI:
 def main():
     root = ttk.Window(themename="darkly")
     app = HATSKitProGUI(root)
-
+    
     # --- Force Window to Front on Startup ---
     root.deiconify()  # Ensure window is not minimized
     root.lift()       # Bring window to the top of the stacking order
     root.focus_force() # Force focus to this window
-
-    # Trick: Briefly make it 'topmost' to ensure it pops over other apps,
+    
+    # Trick: Briefly make it 'topmost' to ensure it pops over other apps, 
     # then disable 'topmost' so it behaves normally afterwards.
     root.attributes('-topmost', True)
     root.after(50, lambda: root.attributes('-topmost', False))
     # ---------------------------------------------
-
+    
     root.mainloop()
 
 if __name__ == '__main__':
