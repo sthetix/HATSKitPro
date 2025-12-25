@@ -105,13 +105,13 @@
     "repo": "sthetix/FuseCheck",
     "source_type": "github_release"
   },
-  "HATSIFY": {
+  "NetMan": {
     "asset_info": {
       "version": "1.0.0"
     },
     "asset_patterns": [
       {
-        "pattern": "HATSIFY.bin",
+        "pattern": "NetMan.bin",
         "processing_steps": [
           {
             "action": "copy_file",
@@ -122,8 +122,8 @@
     ],
     "category": "Payloads",
     "description": "A simple Nintendo Switch network configuration tool for managing online/offline modes.",
-    "name": "HATSIFY",
-    "repo": "sthetix/HATSIFY",
+    "name": "NetMan",
+    "repo": "sthetix/NetMan",
     "source_type": "github_release"
   },
   "HWFLY": {
@@ -288,8 +288,7 @@
       }
     ],
     "category": "Essential",
-    "default": false,
-    "description": "Core CFW. Essential.",
+    "description": "Customized firmware for the Nintendo Switch.",
     "name": "Atmosphere",
     "repo": "Atmosphere-NX/Atmosphere",
     "source_type": "github_release"
@@ -337,7 +336,7 @@
       }
     ],
     "category": "Homebrew Apps",
-    "description": "App / Game installer",
+    "description": "App / Game installer.",
     "name": "DBI",
     "repo": "Morce3232/DBIPatcher",
     "source_type": "github_release"
@@ -358,7 +357,7 @@
       }
     ],
     "category": "Homebrew Apps",
-    "description": "App / Game installer",
+    "description": "App / Game installer, Russian version.",
     "name": "DBI RU",
     "repo": "sthetix/dbi",
     "source_type": "github_release"
@@ -451,7 +450,7 @@
   },
   "goldleaf": {
     "asset_info": {
-      "version": "1.1.1"
+      "version": "1.2.0"
     },
     "asset_patterns": [
       {
@@ -467,7 +466,7 @@
     "category": "Homebrew Apps",
     "description": "Multipurpose homebrew tool.",
     "name": "Goldleaf",
-    "repo": "DefenderOfHyrule/Goldleaf",
+    "repo": "XorTroll/Goldleaf",
     "source_type": "github_release"
   },
   "hekate": {
@@ -485,7 +484,7 @@
       }
     ],
     "category": "Essential",
-    "description": "Bootloader and tools. Essential.",
+    "description": "Nintendo Switch bootloader, firmware patcher, tools, and many more.",
     "name": "Hekate-ext",
     "repo": "sthetix/hekate-ext",
     "source_type": "github_release"
@@ -652,7 +651,7 @@
   },
   "pkDwich": {
     "asset_info": {
-      "version": "v1.0.5"
+      "version": "v1.06"
     },
     "asset_patterns": [
       {
@@ -666,7 +665,7 @@
       }
     ],
     "category": "Tesla Overlays",
-    "description": "pkDwich is a tool to view Pokemon Scarlet / Violet \"Creative Mode\" sandwich recipes while playing Pokemon games.",
+    "description": "A tool to view Pokemon Scarlet / Violet \"Creative Mode\" sandwich recipes.",
     "name": "pkDwich",
     "repo": "Insektaure/pkDwich",
     "source_type": "github_release"
@@ -769,7 +768,7 @@
       }
     ],
     "category": "Homebrew Apps",
-    "description": "A minimal reimplementation of the barrel.",
+    "description": "A homebrew menu that includes an appstore and a file browser.",
     "name": "Sphaira",
     "repo": "ITotalJustice/sphaira",
     "source_type": "github_release"
@@ -866,7 +865,7 @@
   },
   "sys_patch": {
     "asset_info": {
-      "version": "v1.5.8"
+      "version": "v1.5.9"
     },
     "asset_patterns": [
       {
