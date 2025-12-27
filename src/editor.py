@@ -50,8 +50,14 @@ class ComponentEditor:
                         child.config(command=self.delete_component)
                     elif text == "Save Changes":
                         child.config(command=self.save_changes)
+                    elif text == "Add Step":
+                        child.config(command=self.add_step)
+                    elif text == "Edit Step":
+                        child.config(command=self.edit_step)
+                    elif text == "Remove Step":
+                        child.config(command=self.remove_step)
                 find_buttons(child)
-        
+
         find_buttons(self.gui.editor_tab)
 
         # Find the assets button frame and add buttons vertically
@@ -172,11 +178,49 @@ class ComponentEditor:
 
         # Populate source fields based on type
         if source_type == 'direct_url':
+            url = comp_data.get('repo', '')
             self.gui.editor_url.delete(0, END)
-            self.gui.editor_url.insert(0, comp_data.get('repo', ''))
+            self.gui.editor_url.insert(0, url)
+
+            # ---- Treat direct_url as a single implicit asset ----
+            steps = comp_data.get('processing_steps', [])
+            pattern_value = comp_data.get('asset_pattern', url)
+
+            # Clear asset UI and temp storage
+            self.gui.editor_assets_list.delete(*self.gui.editor_assets_list.get_children())
+            self.temp_asset_configs.clear()
+
+            # Create virtual asset entry
+            asset_config = {
+                'pattern': pattern_value,
+                'processing_steps': steps
+            }
+
+            item_id = self.gui.editor_assets_list.insert('', END, values=(pattern_value,))
+            self.temp_asset_configs[item_id] = asset_config
+
+            # Auto-select it
+            self.gui.editor_assets_list.selection_set(item_id)
+            self.gui.editor_assets_list.focus(item_id)
+            self.selected_asset_item = item_id
+
+            # Load steps into UI
+            self.clear_steps_list()
+            self.gui.editor_steps_info.config(text=pattern_value or "(direct_url)")
+            for step in steps:
+                action = step.get('action', 'N/A')
+                details = ', '.join(
+                    [f"{k}='{v}'" for k, v in step.items() if k != 'action']
+                )
+                display = f"{action}: {details}" if details else action
+                self.gui.editor_steps_list.insert('', END, values=(display,))
+
         else:  # github_release
             self.gui.editor_repo.delete(0, END)
             self.gui.editor_repo.insert(0, comp_data.get('repo', ''))
+            # Tag field (used by github_tag, harmless for github_release)
+            self.gui.editor_tag.delete(0, END)
+            self.gui.editor_tag.insert(0, comp_data.get('tag', ''))
 
             # Check if multi-asset or single asset
             if 'asset_patterns' in comp_data:
@@ -186,6 +230,34 @@ class ComponentEditor:
                     pattern = asset_config.get('pattern', '')
                     item_id = self.gui.editor_assets_list.insert('', END, values=(pattern,))
                     self.temp_asset_configs[item_id] = asset_config
+
+                # Auto-select the first asset pattern (if any) and load its steps
+                asset_items = self.gui.editor_assets_list.get_children()
+                if asset_items:
+                    first_item = asset_items[0]
+                    self.gui.editor_assets_list.selection_set(first_item)
+                    self.gui.editor_assets_list.focus(first_item)
+                    self.selected_asset_item = first_item
+
+                    # Reuse the same logic as when the user clicks an asset
+                    # (assuming on_asset_selection_change is already bound)
+                    try:
+                        self.on_asset_selection_change(None)
+                    except AttributeError:
+                        # Fallback: load steps manually if the handler isn't present
+                        asset_config = self.temp_asset_configs.get(first_item, {})
+                        pattern_name = asset_config.get('pattern', '')
+                        self.gui.editor_steps_info.config(text=pattern_name)
+
+                        self.clear_steps_list()
+                        steps = asset_config.get('processing_steps', [])
+                        for step in steps:
+                            action = step.get('action', 'N/A')
+                            details = ', '.join(
+                                [f"{k}='{v}'" for k, v in step.items() if k != 'action']
+                            )
+                            display = f"{action}: {details}" if details else action
+                            self.gui.editor_steps_list.insert('', END, values=(display,))
             else:
                 # Single asset format - for backward compatibility
                 # Need to show the legacy pattern field and hide the multi-asset UI
@@ -347,6 +419,16 @@ class ComponentEditor:
             return
 
         source_type = self.gui.editor_source_type.get()
+        tag_value = self.gui.editor_tag.get().strip()
+
+        # Validation: Tag required for github_tag
+        if source_type == 'github_tag' and not tag_value:
+            self.gui.show_custom_info(
+                "Validation Error",
+                "Tag field cannot be empty when using GitHub Tag source."
+            )
+            comp_id_entry.config(state=DISABLED if not is_new_component else NORMAL)
+            return
 
         # Validation: Source type
         if not source_type:
@@ -418,8 +500,11 @@ class ComponentEditor:
             "asset_info": existing_asset_info
         }
 
+        if tag_value:
+            new_data["tag"] = tag_value
+
         # Handle asset patterns (multi-asset vs single-asset)
-        if source_type == 'github_release':
+        if source_type in ('github_release', 'github_tag'):
             asset_list_items = self.gui.editor_assets_list.get_children()
 
             if asset_list_items:
