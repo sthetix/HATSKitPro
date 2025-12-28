@@ -615,7 +615,7 @@ class PackBuilder:
         # Create progress window
         progress_window = ttk.Toplevel(self.gui.root)
         progress_window.title("Fetching Versions")
-        progress_window.geometry("600x650")
+        progress_window.geometry("600x700")
         progress_window.transient(self.gui.root)
         progress_window.grab_set()
         self.gui.center_window(progress_window)
