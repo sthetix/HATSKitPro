@@ -276,6 +276,7 @@ class HATSKitProGUI:
         status_text = f"  Loaded {len(self.components_data)} components"
         if self.last_build_data:
             pack_name = self.last_build_data.get('pack_name', 'N/A')
+            # Extract the build info from pack name (e.g., "HATS-20251010-fad2d63.zip" -> "HATS-20251010-fad2d63")
             if pack_name != 'N/A' and pack_name.endswith('.zip'):
                 pack_name = pack_name[:-4]
             status_text += f" | Last build: {pack_name}"

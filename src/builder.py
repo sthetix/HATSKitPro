@@ -800,7 +800,7 @@ class PackBuilder:
             return
 
         now = datetime.datetime.now(datetime.timezone.utc)
-        date_str = now.strftime("%d%m%Y")
+        date_str = now.strftime("%Y%m%d")
         initial_file = f"HATS-{date_str}-building.zip"
 
         output_file = filedialog.asksaveasfilename(
@@ -1044,7 +1044,7 @@ class PackBuilder:
             selected_components = {cid: self.gui.components_data[cid] for cid in selected_ids}
             manifest['content_hash'] = self.compute_content_hash(selected_components)
 
-            final_base_name = f"HATS-{datetime.datetime.now().strftime('%d%m%Y')}-{manifest['content_hash']}"
+            final_base_name = f"HATS-{datetime.datetime.now().strftime('%Y%m%d')}-{manifest['content_hash']}"
             output_path = Path(output_file)
             final_output_file = output_path.parent / f"{final_base_name}.zip"
             manifest['pack_name'] = f"{final_base_name}.zip"
@@ -1089,7 +1089,7 @@ class PackBuilder:
 
         with open(metadata_path, 'w', encoding='utf-8') as f:
             f.write("# HATS Pack Summary\n\n")
-            f.write(f"**Generated on:** {datetime.datetime.now(datetime.timezone.utc).strftime('%d-%m-%Y %H:%M:%S')} UTC  \n")
+            f.write(f"**Generated on:** {datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')} UTC  \n")
             f.write(f"**Builder Version:** {manifest.get('builder_version', self.gui.VERSION)}-GUI  \n")
 
             if manifest.get('content_hash'):
