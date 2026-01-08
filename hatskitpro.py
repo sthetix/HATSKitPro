@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v1.3.0 - Main GUI Skeleton
+HATSKit Pro v1.3.1-G - Main GUI Skeleton
 A unified tool for building and managing HATS packs
 """
 
@@ -20,7 +20,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.3.0"
+VERSION = "1.3.1-G"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
