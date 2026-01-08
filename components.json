@@ -105,27 +105,6 @@
     "repo": "sthetix/FuseCheck",
     "source_type": "github_release"
   },
-  "NetMan": {
-    "asset_info": {
-      "version": "1.0.0"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "NetMan.bin",
-        "processing_steps": [
-          {
-            "action": "copy_file",
-            "target_path": "/bootloader/payloads/"
-          }
-        ]
-      }
-    ],
-    "category": "Payloads",
-    "description": "A simple Nintendo Switch network configuration tool for managing online/offline modes.",
-    "name": "NetMan",
-    "repo": "sthetix/NetMan",
-    "source_type": "github_release"
-  },
   "HWFLY": {
     "asset_info": {
       "version": "1.1.1"
@@ -211,6 +190,26 @@
     "repo": "DarkMatterCore/nxdumptool",
     "source_type": "github_tag",
     "tag": "rewrite-prerelease"
+  },
+  "NetMan": {
+    "asset_info": {
+      "version": "1.0.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "NetMan.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "A simple Nintendo Switch network configuration tool for managing online/offline modes.",
+    "name": "NetMan",
+    "repo": "sthetix/NetMan",
+    "source_type": "github_release"
   },
   "Sigpatches": {
     "asset_info": {
@@ -467,6 +466,26 @@
     "description": "Multipurpose homebrew tool.",
     "name": "Goldleaf",
     "repo": "XorTroll/Goldleaf",
+    "source_type": "github_release"
+  },
+  "hats-tools": {
+    "asset_info": {
+      "version": "1.5.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "hats-tools.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "A comprehensive tool for the Nintendo Switch.",
+    "name": "HATS-Tools",
+    "repo": "sthetix/HATS-Tools",
     "source_type": "github_release"
   },
   "hekate": {
@@ -1034,6 +1053,25 @@
     "description": "A new Tesla menu reimplementation.",
     "name": "Ultrahand Overlay",
     "repo": "ppkantorski/Ultrahand-Overlay",
+    "source_type": "github_release"
+  },
+  "untitled": {
+    "asset_info": {},
+    "asset_patterns": [
+      {
+        "pattern": "Untitled.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/untitled/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Batch title uninstaller for the Nintendo Switch.",
+    "name": "Untitled",
+    "repo": "TOM-BadEN/untitled",
     "source_type": "github_release"
   }
 }
