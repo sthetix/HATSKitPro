@@ -22,7 +22,7 @@
   },
   "Breeze": {
     "asset_info": {
-      "version": "beta99s"
+      "version": "beta99s_pr4"
     },
     "asset_patterns": [
       {
@@ -274,7 +274,7 @@
   },
   "atmosphere": {
     "asset_info": {
-      "version": "1.10.1"
+      "version": "1.10.2"
     },
     "asset_patterns": [
       {
@@ -470,11 +470,11 @@
   },
   "hats-tools": {
     "asset_info": {
-      "version": "1.5.0"
+      "version": "1.5.3"
     },
     "asset_patterns": [
       {
-        "pattern": "hats-tools.zip",
+        "pattern": "hats-tools*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -843,7 +843,7 @@
   },
   "sys-clk-overlay": {
     "asset_info": {
-      "version": "2.0.1+r20"
+      "version": "2.0.1+r21"
     },
     "asset_patterns": [
       {
@@ -904,7 +904,7 @@
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.4.6"
+      "version": "v1.4.7"
     },
     "asset_patterns": [
       {
@@ -1033,7 +1033,7 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.2.6"
+      "version": "v2.2.7"
     },
     "asset_patterns": [
       {
@@ -1056,7 +1056,9 @@
     "source_type": "github_release"
   },
   "untitled": {
-    "asset_info": {},
+    "asset_info": {
+      "version": "v2.0.2"
+    },
     "asset_patterns": [
       {
         "pattern": "Untitled.nro",
