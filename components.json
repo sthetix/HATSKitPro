@@ -41,17 +41,77 @@
     "repo": "sthetix/FuseCheck",
     "source_type": "github_release"
   },
+  "Goldleaf": {
+    "asset_info": {
+      "version": "1.2.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "Goldleaf.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Multipurpose homebrew tool for Nintendo Switch",
+    "name": "Goldleaf",
+    "repo": "XorTroll/Goldleaf",
+    "source_type": "github_release"
+  },
+  "HATS-Installer-Payload": {
+    "asset_info": {
+      "version": "1.0.1"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "hats-installer-*.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "HATS Pack installer in form of a payload, should be run in conjunction with the HATS Tools",
+    "name": "HATS-Installer-Payload",
+    "repo": "sthetix/HATS-Installer-Payload",
+    "source_type": "github_release"
+  },
+  "HATS-Tools": {
+    "asset_info": {
+      "version": "1.5.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "hats-tools.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "HATS Pack and firmware downloader, installer and uninstaller",
+    "name": "HATS-Tools",
+    "repo": "sthetix/HATS-Tools",
+    "source_type": "github_release"
+  },
   "Lockpick_RCM_Pro": {
     "asset_info": {
       "version": "1.9.16"
     },
     "asset_patterns": [
       {
-        "pattern": "Lockpick*.bin",
+        "pattern": "Lockpick*.zip",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/bootloader/payloads"
+            "action": "unzip_to_root"
           }
         ]
       }
@@ -60,6 +120,26 @@
     "description": "Prod.keys and Prodinfo dumper",
     "name": "Lockpick_RCM_Pro",
     "repo": "sthetix/Lockpick_RCM_Pro",
+    "source_type": "github_release"
+  },
+  "NetMan": {
+    "asset_info": {
+      "version": "1.0.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "NetMan.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "Nintendo Switch network configuration tool for managing online/offline modes",
+    "name": "NetMan",
+    "repo": "sthetix/NetMan",
     "source_type": "github_release"
   },
   "Sigpatches": {
@@ -80,6 +160,26 @@
     "description": "Signature patches to run games",
     "name": "Sigpatches",
     "repo": "NexlifyHub/SystemEnhancer",
+    "source_type": "github_release"
+  },
+  "Warmboot-Extractor": {
+    "asset_info": {
+      "version": "1.0.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "Warmboot-Extractor-*.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "",
+    "name": "Warmboot-Extractor",
+    "repo": "sthetix/Warmboot-Extractor",
     "source_type": "github_release"
   },
   "aio_updater": {
@@ -124,7 +224,7 @@
   },
   "dbi_ru": {
     "asset_info": {
-      "version": "DBI.851.ru.zip"
+      "version": "DBI.854.ru.zip"
     },
     "asset_patterns": [
       {
@@ -182,6 +282,27 @@
     "description": "Tesla overlay for Edizon.",
     "name": "Edizon Overlay",
     "repo": "proferabg/EdiZon-Overlay",
+    "source_type": "github_release"
+  },
+  "emuiibo": {
+    "asset_info": {
+      "version": "1.1.2"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "emuiibo.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_subfolder_to_root",
+            "subfolder_name": "SdOut"
+          }
+        ]
+      }
+    ],
+    "category": "Tesla Overlays",
+    "description": "Virtual amiibo (amiibo emulation) system for Nintendo Switch",
+    "name": "emuiibo",
+    "repo": "XorTroll/emuiibo",
     "source_type": "github_release"
   },
   "hekate": {
@@ -426,10 +547,6 @@
           },
           {
             "action": "delete_file",
-            "path": "/switch/.overlays/sys-clk-overlay.ovl"
-          },
-          {
-            "action": "delete_file",
             "path": "/README.md"
           }
         ]
@@ -443,7 +560,7 @@
   },
   "sys_clk": {
     "asset_info": {
-      "version": "2.0.1+r19"
+      "version": "2.0.1+r20"
     },
     "asset_patterns": [
       {
@@ -464,7 +581,7 @@
   },
   "sys_patch": {
     "asset_info": {
-      "version": "v1.5.8"
+      "version": "v1.5.9"
     },
     "asset_patterns": [
       {
@@ -484,7 +601,7 @@
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.4.5"
+      "version": "v1.4.6"
     },
     "asset_patterns": [
       {
@@ -547,7 +664,7 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.2.2"
+      "version": "v2.2.6"
     },
     "asset_patterns": [
       {

@@ -468,7 +468,7 @@ class PackBuilder:
 
         # Ask where to save - use temporary name, we'll rename after computing hash
         now = datetime.datetime.now(datetime.timezone.utc)
-        date_str = now.strftime("%Y%m%d")
+        date_str = now.strftime("%Y-%m-%d")
         initial_file = f"HATS-{date_str}-building.zip"
 
         output_file = filedialog.asksaveasfilename(
@@ -843,7 +843,7 @@ class PackBuilder:
 
             # --- Determine final filename with correct hash ---
             now = datetime.datetime.now(datetime.timezone.utc)
-            date_str = now.strftime("%Y%m%d")
+            date_str = now.strftime("%Y-%m-%d")
             final_base_name = f"HATS-{date_str}-{content_hash}"
 
             # Determine the final output path
