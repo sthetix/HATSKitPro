@@ -9,6 +9,7 @@ from tkinter import filedialog, messagebox, scrolledtext
 import json
 import os
 import zipfile
+import py7zr
 import shutil
 from pathlib import Path
 import requests
@@ -607,6 +608,9 @@ class PackManager:
         downloads_dir.mkdir(exist_ok=True)
 
         filename = self.latest_release_info.get('filename', 'HATS-pack.zip')
+        save_path = downloads_dir / filename
+
+        filename = self.latest_release_info.get('filename', 'HATS-pack.7z')
         save_path = downloads_dir / filename
 
         # Check if already downloaded

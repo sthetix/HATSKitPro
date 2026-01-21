@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v1.2.0 - Main GUI Skeleton
+HATSKit Pro v1.2.5 - Main GUI Skeleton
 A unified tool for building and managing HATS packs
 """
 
 # Required packages marker for launcher dependency scanner
-REQUIRED_PACKAGES = ['ttkbootstrap', 'requests']
+REQUIRED_PACKAGES = ['ttkbootstrap', 'requests', 'py7zr']
 
 import ttkbootstrap as ttk
 from ttkbootstrap.constants import *
@@ -19,7 +19,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.2.4"
+VERSION = "1.2.5"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'

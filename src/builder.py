@@ -11,6 +11,7 @@ import json
 from ttkbootstrap.constants import *
 from tkinter import filedialog, messagebox, scrolledtext
 import zipfile
+import py7zr
 import tempfile
 import shutil
 from pathlib import Path
@@ -1184,6 +1185,43 @@ class PackBuilder:
 
         return False
 
+    def _extract_archive(self, archive_path, extract_to):
+        """
+        Extract an archive (zip or 7z) to the specified directory.
+        Returns a list of extracted file paths (relative to extract_to).
+        """
+        archive_path = str(archive_path)
+        extracted_files = []
+
+        if archive_path.endswith('.7z'):
+            with py7zr.SevenZipFile(archive_path, 'r') as archive:
+                archive.extractall(path=extract_to)
+                for member in archive.getnames():
+                    if not member.endswith('/'):
+                        extracted_files.append(member)
+        else:  # Assume zip format
+            with zipfile.ZipFile(archive_path, 'r') as archive:
+                archive.extractall(extract_to)
+                for member in archive.infolist():
+                    if not member.is_dir():
+                        extracted_files.append(member.filename)
+
+        return extracted_files
+
+    def _get_archive_contents(self, archive_path):
+        """
+        Get list of contents in an archive (zip or 7z).
+        Returns list of paths in the archive.
+        """
+        archive_path = str(archive_path)
+
+        if archive_path.endswith('.7z'):
+            with py7zr.SevenZipFile(archive_path, 'r') as archive:
+                return archive.getnames()
+        else:  # Assume zip format
+            with zipfile.ZipFile(archive_path, 'r') as archive:
+                return [member.filename for member in archive.infolist()]
+
     def _process_asset(self, asset_path, comp_data, staging_dir, log, processing_steps=None):
         """
         Processes a downloaded asset based on component's processing_steps.
@@ -1201,19 +1239,16 @@ class PackBuilder:
             steps = processing_steps
         all_processed_files = []
 
-        if not steps: # If no steps, assume it's a simple zip to root
+        if not steps: # If no steps, assume it's a simple archive to root
             steps = [{"action": "unzip_to_root"}]
 
         for step in steps:
             action = step.get('action')
             log(f"  - Executing step: {action}")
             if action == 'unzip_to_root':
-                with zipfile.ZipFile(asset_path, 'r') as zip_ref:
-                    zip_ref.extractall(staging_dir)
-                    # Record all extracted files for the manifest
-                    all_processed_files.extend(
-                        staging_dir / member.filename for member in zip_ref.infolist() if not member.is_dir()
-                    )
+                extracted = self._extract_archive(asset_path, staging_dir)
+                for member in extracted:
+                    all_processed_files.append(staging_dir / member)
             elif action == 'unzip_to_path':
                 target_path_str = step.get('target_path', '').lstrip('/')
                 if not target_path_str:
@@ -1223,12 +1258,9 @@ class PackBuilder:
                 target_dir = staging_dir / target_path_str
                 target_dir.mkdir(parents=True, exist_ok=True)
 
-                with zipfile.ZipFile(asset_path, 'r') as zip_ref:
-                    zip_ref.extractall(target_dir)
-                    # Record all extracted files for the manifest
-                    all_processed_files.extend(
-                        target_dir / member.filename for member in zip_ref.infolist() if not member.is_dir()
-                    )
+                extracted = self._extract_archive(asset_path, target_dir)
+                for member in extracted:
+                    all_processed_files.append(target_dir / member)
                 log(f"    ✅ Extracted to: {target_path_str}")
             elif action == 'copy_file':
                 target_dir_str = step.get('target_path', '').lstrip('/')
@@ -1294,11 +1326,10 @@ class PackBuilder:
                     log("    ❌ 'find_and_copy' is missing 'source_file_pattern'.")
                     continue
 
-                # Unzip to a temporary location to search inside
+                # Extract to a temporary location to search inside
                 with tempfile.TemporaryDirectory(dir=asset_path.parent) as extract_dir:
-                    with zipfile.ZipFile(asset_path, 'r') as zip_ref:
-                        zip_ref.extractall(extract_dir)
-                    
+                    self._extract_archive(asset_path, extract_dir)
+
                     found = False
                     for f in Path(extract_dir).rglob(pattern):
                         target_folder = staging_dir / target_folder_str
@@ -1308,38 +1339,48 @@ class PackBuilder:
                         all_processed_files.append(new_path)
                         log(f"    ✅ Found and copied '{f.name}' to '{new_path.relative_to(staging_dir)}'")
                         found = True
-                    
+
                     if not found:
                         log(f"    ⚠️ Could not find file matching '{pattern}' in the archive.")
             elif action == 'unzip_subfolder_to_root':
-                with zipfile.ZipFile(asset_path, 'r') as zip_ref:
-                    # Automatically find the single top-level directory
-                    top_level_dirs = {name.split('/')[0] for name in zip_ref.namelist() if '/' in name}
-                    
-                    if len(top_level_dirs) == 1:
-                        found_folder = top_level_dirs.pop() + '/'
-                        log(f"    ✅ Found single source folder: '{found_folder.strip('/')}'")
-                    elif len(top_level_dirs) == 0:
-                        log("    ❌ 'unzip_subfolder_to_root' failed: No subfolders found in the archive.")
-                        continue
+                all_paths = self._get_archive_contents(asset_path)
+
+                # Find the single top-level directory
+                top_level_dirs = set()
+                for path in all_paths:
+                    if '/' in path or '\\' in path:
+                        # Handle both / and \ as separators
+                        top_level_dir = path.split('/')[0].split('\\')[0]
+                        top_level_dirs.add(top_level_dir)
+
+                if len(top_level_dirs) == 1:
+                    found_folder = top_level_dirs.pop()
+                    log(f"    ✅ Found single source folder: '{found_folder}'")
+                elif len(top_level_dirs) == 0:
+                    log("    ❌ 'unzip_subfolder_to_root' failed: No subfolders found in the archive.")
+                    continue
+                else:
+                    log(f"    ❌ 'unzip_subfolder_to_root' failed: Ambiguous archive with multiple root folders: {', '.join(top_level_dirs)}")
+                    continue
+
+                # Extract to temp dir first, then move files
+                with tempfile.TemporaryDirectory(dir=asset_path.parent) as extract_dir:
+                    self._extract_archive(asset_path, extract_dir)
+
+                    # Move files from subfolder to staging root
+                    temp_root = Path(extract_dir)
+                    source_folder = temp_root / found_folder
+
+                    if source_folder.exists():
+                        for item in source_folder.rglob('*'):
+                            if item.is_file():
+                                relative_path = item.relative_to(source_folder)
+                                target_path = staging_dir / relative_path
+                                target_path.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy(str(item), str(target_path))
+                                all_processed_files.append(target_path)
                     else:
-                        log(f"    ❌ 'unzip_subfolder_to_root' failed: Ambiguous archive with multiple root folders: {', '.join(top_level_dirs)}")
-                        continue
-
-                    # Extract contents of the found folder
-                    for member in zip_ref.infolist():
-                        if member.filename.startswith(found_folder):
-                            # Calculate the new path by stripping the source folder prefix
-                            target_path = member.filename.replace(found_folder, '', 1)
-                            if not target_path: # Skip the root folder itself
-                                continue
-
-                            member.filename = target_path # Temporarily modify member for extraction
-                            zip_ref.extract(member, staging_dir)
-                            
-                            # Record the final path in the staging directory for the manifest
-                            if not member.is_dir():
-                                all_processed_files.append(staging_dir / target_path)
+                        log(f"    ❌ Source folder '{found_folder}' not found in extracted archive.")
             else:
                 log(f"    ⚠️ Unimplemented action: {action}")
         
