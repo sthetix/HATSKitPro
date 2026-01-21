@@ -321,12 +321,21 @@ class PackManager:
                     log(f"  Deleting {folder}...")
                     shutil.rmtree(folder_path, ignore_errors=True)
             
-            # Delete old manifest files
-            log("  Removing HATS manifest files...")
+            # Delete old HATS version files
+            log("  Removing HATS version files...")
+            # Delete new fixed filename
+            version_file = Path(sd_path) / "HATS_VERSION.txt"
+            if version_file.exists():
+                try:
+                    version_file.unlink()
+                    log(f"    Deleted HATS_VERSION.txt")
+                except:
+                    pass
+            # Legacy support: delete old HATS-*.txt format
             for file in Path(sd_path).glob("HATS-*.txt"):
                 try:
                     file.unlink()
-                    log(f"    Deleted {file.name}")
+                    log(f"    Deleted {file.name} (legacy)")
                 except:
                     pass
 

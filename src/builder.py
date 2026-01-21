@@ -869,7 +869,8 @@ class PackBuilder:
             log("\n▶ Creating ZIP archive...")
             try:
                 # --- Generate the single metadata .txt file ---
-                metadata_path = staging_dir / f"{final_base_name}.txt"
+                # Use fixed filename so only one version file exists (no accumulation)
+                metadata_path = staging_dir / "HATS_VERSION.txt"
                 log(f"▶ Generating {metadata_path.name}...")
                 last_build_components = self.gui.last_build_data.get('components', {})
 
