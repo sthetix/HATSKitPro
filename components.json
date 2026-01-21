@@ -21,6 +21,26 @@
     "repo": "meganukebmp/Switch_90DNS_tester",
     "source_type": "github_release"
   },
+  "DowngradeFixer": {
+    "asset_info": {
+      "version": "1.0.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "DowngradeFixer-*.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Payloads",
+    "description": "Payload to fix the brick when downgrading from 21.X.X to 20.X.X",
+    "name": "DowngradeFixer",
+    "repo": "sthetix/DowngradeFixer",
+    "source_type": "github_release"
+  },
   "FuseCheck": {
     "asset_info": {
       "version": "1.0.0"
@@ -62,33 +82,13 @@
     "repo": "XorTroll/Goldleaf",
     "source_type": "github_release"
   },
-  "HATS-Installer-Payload": {
-    "asset_info": {
-      "version": "1.0.1"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "hats-installer-*.zip",
-        "processing_steps": [
-          {
-            "action": "unzip_to_root"
-          }
-        ]
-      }
-    ],
-    "category": "Payloads",
-    "description": "HATS Pack installer in form of a payload, should be run in conjunction with the HATS Tools",
-    "name": "HATS-Installer-Payload",
-    "repo": "sthetix/HATS-Installer-Payload",
-    "source_type": "github_release"
-  },
   "HATS-Tools": {
     "asset_info": {
-      "version": "1.5.0"
+      "version": "1.5.4"
     },
     "asset_patterns": [
       {
-        "pattern": "hats-tools.zip",
+        "pattern": "hats-tools-*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -144,7 +144,7 @@
   },
   "Sigpatches": {
     "asset_info": {
-      "version": "1.9.7"
+      "version": "1.9.8"
     },
     "asset_patterns": [
       {
@@ -204,7 +204,7 @@
   },
   "atmosphere": {
     "asset_info": {
-      "version": "1.10.1"
+      "version": "1.10.2"
     },
     "asset_patterns": [
       {
@@ -224,7 +224,7 @@
   },
   "dbi_ru": {
     "asset_info": {
-      "version": "DBI.854.ru.zip"
+      "version": "DBI.863.ru.zip"
     },
     "asset_patterns": [
       {
@@ -307,7 +307,7 @@
   },
   "hekate": {
     "asset_info": {
-      "version": "v6.4.2"
+      "version": "v6.5.0"
     },
     "asset_patterns": [
       {
@@ -369,7 +369,7 @@
   },
   "mission_control": {
     "asset_info": {
-      "version": "v0.14.1"
+      "version": "v0.14.2"
     },
     "asset_patterns": [
       {
@@ -560,7 +560,7 @@
   },
   "sys_clk": {
     "asset_info": {
-      "version": "2.0.1+r20"
+      "version": "2.0.1+r21"
     },
     "asset_patterns": [
       {
@@ -601,7 +601,7 @@
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.4.6"
+      "version": "v1.4.7"
     },
     "asset_patterns": [
       {
@@ -664,7 +664,7 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.2.6"
+      "version": "v2.2.7"
     },
     "asset_patterns": [
       {

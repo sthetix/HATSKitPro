@@ -57,7 +57,8 @@ HATSKit Pro is a comprehensive Windows application that simplifies the process o
 - Install Dot.net if it's not present
 - Check if Python is installed on your system
 - Install Python if it's not present
-- Install all required dependencies (`ttkbootstrap`, `requests`)
+- Install all required dependencies (`ttkbootstrap`, `requests`, `py7zr`)
+  - `py7zr` is used to extract `.7z` component downloads during pack building
 - Launch HATSKit Pro
 
 No manual setup or command-line operations required!
@@ -76,8 +77,9 @@ cd HATSKit-Pro
 
 3. Install required dependencies:
 ```bash
-pip install ttkbootstrap requests
+pip install ttkbootstrap requests py7zr
 ```
+> `py7zr` is required to extract `.7z` component archives during pack building
 
 4. Run the application:
 ```bash
@@ -108,7 +110,7 @@ python hatskitpro.py
 5. Preview your selections in the right panel
 6. Click `Fetch Versions` to get the latest version information (optional)
 7. Click `Build Pack` to create your custom HATS pack
-8. The pack will be saved as `HATS-[date]-[time].zip`
+8. The pack will be saved as `HATS-[date]-[hash].zip`
 
 ### Installing a Pack
 
