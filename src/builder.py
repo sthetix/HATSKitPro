@@ -875,9 +875,8 @@ class PackBuilder:
                 last_build_components = self.gui.last_build_data.get('components', {})
 
                 with open(metadata_path, 'w', encoding='utf-8') as f:
-                    # First line: simple version string for easy parsing
-                    f.write(f"{final_base_name}\n")
-                    # Header
+                    # First line: version string as markdown header
+                    f.write(f"# {final_base_name}\n")
                     f.write("# HATS Pack Summary\n\n")
 
                     # Metadata section with markdown formatting
