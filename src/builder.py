@@ -904,23 +904,51 @@ class PackBuilder:
 
                     f.write("\n---\n\n")
 
-                    # Changelog section
+                    # Changelog section - detect new, removed, and updated components
+                    new_components = []
+                    removed_components = []
                     version_changes = []
+
+                    # Check for new and updated components
                     for comp_id, comp_data in manifest['components'].items():
                         last_comp = last_build_components.get(comp_id)
-                        # Only show version changes, not newly added/removed components
-                        if last_comp and last_comp.get('version') != comp_data['version']:
+                        if not last_comp:
+                            # New component (not in last build)
+                            new_components.append(f"- **{comp_data['name']}** ({comp_data['version']})")
+                        elif last_comp.get('version') != comp_data['version']:
+                            # Version changed
                             version_changes.append(f"- **{comp_data['name']}:** {last_comp.get('version')} → **{comp_data['version']}**")
 
-                    if version_changes or build_comment:
+                    # Check for removed components (in last build but not in new)
+                    for comp_id, last_comp in last_build_components.items():
+                        if comp_id not in manifest['components']:
+                            removed_components.append(f"- **{last_comp.get('name', comp_id)}** ({last_comp.get('version', 'N/A')})")
+
+                    if new_components or removed_components or version_changes or build_comment:
                         f.write("## CHANGELOG (What's New Since Last Build)\n\n")
+
                         if build_comment:
                             f.write(f"### Build Notes:\n{build_comment}\n\n")
+
+                        if new_components:
+                            f.write("### New Components Added:\n")
+                            for item in new_components:
+                                f.write(f"{item}\n")
+                            f.write("\n")
+
+                        if removed_components:
+                            f.write("### Components Removed:\n")
+                            for item in removed_components:
+                                f.write(f"{item}\n")
+                            f.write("\n")
+
                         if version_changes:
                             f.write("### Version Updates:\n")
                             for change in version_changes:
                                 f.write(f"{change}\n")
-                        f.write("\n---\n\n")
+                            f.write("\n")
+
+                        f.write("---\n\n")
 
                     # --- Included Components Section ---
                     f.write("## INCLUDED COMPONENTS\n")
