@@ -148,6 +148,48 @@ python hatskitpro.py
 4. Click `Save Changes` to update the component definition
 5. Use `Add New` to create new component entries
 
+#### Processing Steps Reference
+
+Processing steps define how downloaded assets are extracted and placed in the HATS pack. Available actions:
+
+| Action | Parameters | Description |
+|--------|------------|-------------|
+| `unzip_to_root` | none | Extract entire archive to SD card root |
+| `unzip_to_path` | `target_path` | Extract entire archive to specified path (e.g., `switch/DBI/`) |
+| `unzip_subfolder_to_path` | `subfolder_name`, `target_path` (optional) | Extract a specific subfolder from the archive to a path. Use for nested folders like `theme-patches-master/systemPatches` |
+| `copy_file` | `target_path` | Copy a single file to the specified directory |
+| `copy_file_to_auto_folder` | `target_path` | Copy a file to a folder auto-created from its filename. Example: `NXThemesInstaller.nro` → `switch/NXThemesInstaller/NXThemesInstaller.nro` |
+| `find_and_copy` | `source_file_pattern`, `target_path` | Find files matching a pattern in the archive and copy them to a path |
+| `find_and_rename` | `source_file_pattern`, `target_path`, `target_filename` | Find and rename a file from the archive |
+| `delete_file` | `path` | Delete a specific file or folder after extraction |
+
+**Example - Organizing Homebrew Apps:**
+```json
+{
+  "pattern": "*.nro",
+  "processing_steps": [
+    {
+      "action": "copy_file_to_auto_folder",
+      "target_path": "switch/"
+    }
+  ]
+}
+```
+
+**Example - Theme Patches:**
+```json
+{
+  "pattern": "theme-patches-*.zip",
+  "processing_steps": [
+    {
+      "action": "unzip_subfolder_to_path",
+      "subfolder_name": "theme-patches-master/systemPatches",
+      "target_path": "themes/"
+    }
+  ]
+}
+```
+
 ## Configuration
 
 ### config.json

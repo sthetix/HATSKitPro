@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v1.2.5 - Main GUI Skeleton
+HATSKit Pro v1.2.8 - Main GUI Skeleton
 A unified tool for building and managing HATS packs
 """
 
@@ -19,7 +19,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.2.5"
+VERSION = "1.2.6"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
@@ -68,11 +68,8 @@ class HATSKitProGUI:
         self.root.geometry("1100x1200")
         self.root.resizable(True, True)
 
-        # Bind events to debug window state changes
-        self.root.bind('<Unmap>', self._on_window_unmap)
-        self.root.bind('<Map>', self._on_window_map)
-        self.root.bind('<FocusOut>', self._on_focus_out)
-        self.root.bind('<FocusIn>', self._on_focus_in)
+        # Note: Debug event handlers removed - they were interfering with
+        # window minimize/restore functionality, especially in compiled executables
         
         # Variables
         self.github_pat = ttk.StringVar()
@@ -555,6 +552,8 @@ class HATSKitProGUI:
                 self.editor_assets_frame.grid(row=8, column=1, sticky=EW, pady=5, padx=(0, 10))
                 self.editor_url_label.grid_remove()
                 self.editor_url.grid_remove()
+                # Reset steps info for github_release
+                self.editor_steps_info.config(text="(no asset selected)")
             elif source_type == 'direct_url':
                 self.editor_repo_label.grid_remove()
                 self.editor_repo.grid_remove()
@@ -564,6 +563,8 @@ class HATSKitProGUI:
                 self.editor_assets_frame.grid_remove()
                 self.editor_url_label.grid(row=7, column=0, sticky=W, pady=5, padx=(0, 10))
                 self.editor_url.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
+                # Update steps info to indicate direct URL mode
+                self.editor_steps_info.config(text="(direct URL)")
 
         self.editor_source_type.bind('<<ComboboxSelected>>', update_source_fields)
 
@@ -966,48 +967,6 @@ class HATSKitProGUI:
                   bootstyle="warning").pack(side=LEFT, padx=5)
 
     # ===== HELPER METHODS =====
-
-    def _on_window_unmap(self, event):
-        """Debug: Called when window is unmapped (minimized/hidden)"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                geometry = self.root.geometry()
-                x = self.root.winfo_x()
-                y = self.root.winfo_y()
-                print(f"DEBUG: Window UNMAPPED - State: {state}, Geometry: {geometry}, Position: ({x}, {y})")
-            except Exception as e:
-                print(f"DEBUG: Window unmapped - Error getting info: {e}")
-
-    def _on_window_map(self, event):
-        """Debug: Called when window is mapped (shown)"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                geometry = self.root.geometry()
-                x = self.root.winfo_x()
-                y = self.root.winfo_y()
-                print(f"DEBUG: Window MAPPED - State: {state}, Geometry: {geometry}, Position: ({x}, {y})")
-            except Exception as e:
-                print(f"DEBUG: Window mapped - Error getting info: {e}")
-
-    def _on_focus_out(self, event):
-        """Debug: Called when window loses focus"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                print(f"DEBUG: Window LOST FOCUS - State: {state}")
-            except Exception as e:
-                print(f"DEBUG: Lost focus - Error: {e}")
-
-    def _on_focus_in(self, event):
-        """Debug: Called when window gains focus"""
-        if event.widget == self.root:
-            try:
-                state = self.root.state()
-                print(f"DEBUG: Window GAINED FOCUS - State: {state}")
-            except Exception as e:
-                print(f"DEBUG: Gained focus - Error: {e}")
 
     def browse_sd_card_manager(self):
         """Browse for SD card from Manager tab (silent, no popup)"""

@@ -1,6 +1,7 @@
 """
 editor.py - Component Editor Module
 Handles all Component Editor tab logic and functionality
+HATSKit Pro v1.2.8
 """
 
 import ttkbootstrap as ttk
@@ -174,6 +175,15 @@ class ComponentEditor:
         if source_type == 'direct_url':
             self.gui.editor_url.delete(0, END)
             self.gui.editor_url.insert(0, comp_data.get('repo', ''))
+
+            # Load processing steps for direct_url
+            self.gui.editor_steps_info.config(text="(direct URL)")
+            steps = comp_data.get('processing_steps', [])
+            for step in steps:
+                action = step.get('action', 'N/A')
+                details = ', '.join([f"{k}='{v}'" for k, v in step.items() if k != 'action'])
+                display = f"{action}: {details}" if details else action
+                self.gui.editor_steps_list.insert('', END, values=(display,))
         else:  # github_release
             self.gui.editor_repo.delete(0, END)
             self.gui.editor_repo.insert(0, comp_data.get('repo', ''))
@@ -551,14 +561,39 @@ class ComponentEditor:
 
     # ==================== Processing Steps Management ====================
 
-    def add_step(self):
-        """Add a processing step to the selected asset pattern or legacy component"""
-        # Check if we're in legacy mode (no selected asset but component is loaded)
-        is_legacy = (not self.selected_asset_item and
-                     self.current_selection and
-                     self.gui.editor_steps_info.cget('text') == "(legacy single-asset format)")
+    def _can_edit_processing_steps(self):
+        """Check if the current state allows direct editing of processing steps"""
+        # Mode 1: Asset pattern selected (multi-asset github_release)
+        if self.selected_asset_item:
+            return True
 
-        if not self.selected_asset_item and not is_legacy:
+        # Mode 2: Legacy single-asset format
+        if self.gui.editor_steps_info.cget('text') == "(legacy single-asset format)":
+            return True
+
+        # Mode 3: Direct URL source type (single file with processing steps)
+        # Check both existing component data and the UI dropdown value
+        source_type = self.gui.editor_source_type.get()
+
+        # If adding new component with direct_url selected
+        if source_type == 'direct_url':
+            return True
+
+        # If editing existing direct_url component
+        if self.current_selection:
+            comp_data = self.gui.components_data.get(self.current_selection, {})
+            if comp_data.get('source_type') == 'direct_url':
+                return True
+
+        return False
+
+    def add_step(self):
+        """Add a processing step to the selected asset pattern, legacy component, or direct_url component"""
+        # Check if we're in a mode that allows direct step editing
+        # Modes: legacy single-asset, direct_url, or asset pattern selected
+        can_edit_steps = self._can_edit_processing_steps()
+
+        if not can_edit_steps:
             self.gui.show_custom_info("No Asset Selected",
                                      "Please select an asset pattern first to add processing steps.")
             return
@@ -567,12 +602,10 @@ class ComponentEditor:
 
     def edit_step(self):
         """Edit the selected processing step"""
-        # Check if we're in legacy mode
-        is_legacy = (not self.selected_asset_item and
-                     self.current_selection and
-                     self.gui.editor_steps_info.cget('text') == "(legacy single-asset format)")
+        # Check if we're in a mode that allows direct step editing
+        can_edit_steps = self._can_edit_processing_steps()
 
-        if not self.selected_asset_item and not is_legacy:
+        if not can_edit_steps:
             self.gui.show_custom_info("No Asset Selected",
                                      "Please select an asset pattern first.")
             return
@@ -589,12 +622,10 @@ class ComponentEditor:
 
     def remove_step(self):
         """Remove the selected processing step"""
-        # Check if we're in legacy mode
-        is_legacy = (not self.selected_asset_item and
-                     self.current_selection and
-                     self.gui.editor_steps_info.cget('text') == "(legacy single-asset format)")
+        # Check if we're in a mode that allows direct step editing
+        can_edit_steps = self._can_edit_processing_steps()
 
-        if not self.selected_asset_item and not is_legacy:
+        if not can_edit_steps:
             self.gui.show_custom_info("No Asset Selected",
                                      "Please select an asset pattern first.")
             return
@@ -614,6 +645,9 @@ class ComponentEditor:
             # Update the asset config in temp storage (only for multi-asset mode)
             if self.selected_asset_item:
                 self._update_asset_config_steps()
+            else:
+                # For direct_url and legacy single-asset, no temp storage to update
+                pass
 
     def _show_step_dialog(self, step_to_edit=None, item_id=None):
         """Show dialog to add or edit a processing step"""
@@ -633,7 +667,7 @@ class ComponentEditor:
         ttk.Label(form_frame, text="Action:", font=('Segoe UI', 9, 'bold')).pack(pady=(5, 2), anchor=W)
         action_var = ttk.StringVar()
         action_combo = ttk.Combobox(form_frame, textvariable=action_var, width=40, state='readonly')
-        action_combo['values'] = ['unzip_to_root', 'unzip_to_path', 'copy_file', 'find_and_rename', 'delete_file', 'find_and_copy', 'unzip_subfolder_to_root']
+        action_combo['values'] = ['unzip_to_root', 'unzip_to_path', 'copy_file', 'copy_file_to_auto_folder', 'find_and_rename', 'delete_file', 'find_and_copy', 'unzip_subfolder_to_path']
         action_combo.pack(pady=(0, 10), fill=X)
 
         if step_to_edit:
@@ -667,15 +701,28 @@ class ComponentEditor:
                 ttk.Label(fields_frame, text="Example: switch/DBI/ or atmosphere/contents/",
                          font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5), anchor=W)
 
-            elif action == 'unzip_subfolder_to_root':
-                ttk.Label(fields_frame, text="Subfolder Name:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
+            elif action == 'unzip_subfolder_to_path':
+                ttk.Label(fields_frame, text="Source Subfolder:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
                 subfolder_entry = ttk.Entry(fields_frame, width=50)
                 subfolder_entry.pack(pady=5, fill=X)
                 field_widgets['subfolder_name'] = subfolder_entry
                 if step_to_edit and 'subfolder_name' in step_to_edit:
                     subfolder_entry.insert(0, step_to_edit['subfolder_name'])
 
-            elif action in ['copy_file', 'find_and_copy', 'find_and_rename']:
+                ttk.Label(fields_frame, text="Target Path (optional):", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
+                target_entry = ttk.Entry(fields_frame, width=50)
+                target_entry.pack(pady=5, fill=X)
+                field_widgets['target_path'] = target_entry
+                if step_to_edit and 'target_path' in step_to_edit:
+                    target_entry.insert(0, step_to_edit['target_path'])
+
+                # Add helpful hints
+                ttk.Label(fields_frame, text="Source: e.g., 'SdOut' or 'theme-patches-master/systemPatches'",
+                         font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 2), anchor=W)
+                ttk.Label(fields_frame, text="Target: e.g., 'themes/' or leave empty for root",
+                         font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5), anchor=W)
+
+            elif action in ['copy_file', 'copy_file_to_auto_folder', 'find_and_copy', 'find_and_rename']:
                 if action in ['find_and_rename', 'find_and_copy']:
                     ttk.Label(fields_frame, text="Source File Pattern:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)
                     pattern_entry = ttk.Entry(fields_frame, width=50)
@@ -690,6 +737,13 @@ class ComponentEditor:
                 field_widgets['target_path'] = target_entry
                 if step_to_edit and 'target_path' in step_to_edit:
                     target_entry.insert(0, step_to_edit['target_path'])
+
+                # Add helpful hint for copy_file_to_auto_folder
+                if action == 'copy_file_to_auto_folder':
+                    ttk.Label(fields_frame, text="A folder will be auto-created from the filename (without extension)",
+                             font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5), anchor=W)
+                    ttk.Label(fields_frame, text="Example: switch/ creates switch/FilenameWithoutExt/Filename.ext",
+                             font=('Segoe UI', 8), foreground='gray').pack(pady=(0, 5), anchor=W)
 
                 if action == 'find_and_rename':
                     ttk.Label(fields_frame, text="Target Filename:", font=('Segoe UI', 9)).pack(pady=5, anchor=W)

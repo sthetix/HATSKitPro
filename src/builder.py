@@ -1,6 +1,7 @@
 """
 builder.py - Pack Builder Module
 Handles all Pack Builder tab logic and functionality
+HATSKit Pro v1.2.8
 """
 
 import ttkbootstrap as ttk
@@ -580,7 +581,7 @@ class PackBuilder:
                 log(f"Checking: {cdata.get('name', cid)}")
 
                 if url:
-                    # Extract version from URL
+                    # Extract version from URL (e.g., /658/DBI.nro -> 658, /v1.2.3/file.zip -> v1.2.3)
                     version_match = re.search(r'/([vV]?\d+(?:\.\d+)*(?:\.\d+)?)/', url)
                     if version_match:
                         extracted_version = version_match.group(1)
@@ -592,8 +593,13 @@ class PackBuilder:
                         self.gui.components_data[cid]['asset_info']['version'] = extracted_version
                         updated_count += 1
                     else:
-                        log(f"  -> Could not extract version from URL: {url}")
-                        failed_count += 1
+                        # No version in URL (e.g., branch archives like /master.zip) - this is OK
+                        log(f"  -> No version info in URL (will use latest)")
+                        # Set version to 'N/A' or keep existing if not a failure
+                        if 'asset_info' not in self.gui.components_data[cid]:
+                            self.gui.components_data[cid]['asset_info'] = {}
+                        if self.gui.components_data[cid]['asset_info'].get('version') != 'N/A':
+                            self.gui.components_data[cid]['asset_info']['version'] = 'N/A'
                 else:
                     log(f"  -> No URL found for component")
                     failed_count += 1
@@ -648,9 +654,13 @@ class PackBuilder:
         log(f"Updated: {updated_count} | Failed: {failed_count} | Skipped: {total_skipped}")
         if len(manual_version_components) > 0:
             log(f"  (includes {len(manual_version_components)} with manual versions)")
+        if len(direct_url_components) > 0:
+            log(f"  (includes {len(direct_url_components)} direct URL components)")
 
         # Stop progress and re-enable button from the main thread
         summary = f"Finished checking versions.\nUpdated: {updated_count}\nFailed: {failed_count}"
+        if len(direct_url_components) > 0:
+            summary += f"\nDirect URL: {len(direct_url_components)} (no version check)"
         if total_skipped > 0:
             summary += f"\nSkipped: {total_skipped} (other components)"
 
@@ -1281,6 +1291,26 @@ class PackBuilder:
                 shutil.copy(asset_path, target_path)
                 all_processed_files.append(target_path)
                 log(f"    ✅ Copied to: {target_path.relative_to(staging_dir)}")
+            elif action == 'copy_file_to_auto_folder':
+                target_dir_str = step.get('target_path', '').lstrip('/')
+                if not target_dir_str:
+                    log("    ❌ 'copy_file_to_auto_folder' is missing 'target_path'.")
+                    continue
+
+                # Get the filename without extension from the downloaded asset
+                filename = asset_path.name
+                filename_without_ext = asset_path.stem  # Removes extension
+
+                # Create auto-generated folder path: target_path/filename_without_ext/
+                auto_folder = staging_dir / target_dir_str / filename_without_ext
+                auto_folder.mkdir(parents=True, exist_ok=True)
+
+                # Copy the file into the auto-created folder
+                target_path = auto_folder / filename
+
+                shutil.copy(asset_path, target_path)
+                all_processed_files.append(target_path)
+                log(f"    ✅ Copied to: {target_path.relative_to(staging_dir)}")
             elif action == 'find_and_rename':
                 pattern = step.get('source_file_pattern')
                 target_name = step.get('target_filename')
@@ -1344,45 +1374,63 @@ class PackBuilder:
 
                     if not found:
                         log(f"    ⚠️ Could not find file matching '{pattern}' in the archive.")
-            elif action == 'unzip_subfolder_to_root':
+            elif action == 'unzip_subfolder_to_path':
                 all_paths = self._get_archive_contents(asset_path)
 
-                # Find the single top-level directory
-                top_level_dirs = set()
-                for path in all_paths:
-                    if '/' in path or '\\' in path:
-                        # Handle both / and \ as separators
-                        top_level_dir = path.split('/')[0].split('\\')[0]
-                        top_level_dirs.add(top_level_dir)
-
-                if len(top_level_dirs) == 1:
-                    found_folder = top_level_dirs.pop()
-                    log(f"    ✅ Found single source folder: '{found_folder}'")
-                elif len(top_level_dirs) == 0:
-                    log("    ❌ 'unzip_subfolder_to_root' failed: No subfolders found in the archive.")
+                # Get subfolder name from step
+                subfolder_name = step.get('subfolder_name', '')
+                if not subfolder_name:
+                    log("    ❌ 'unzip_subfolder_to_path' is missing 'subfolder_name'.")
                     continue
+
+                # Get target path (defaults to root if not specified)
+                target_dir_str = step.get('target_path', '').lstrip('/')
+                if not target_dir_str or target_dir_str in ('/', 'sd:/', 'sd:\\'):
+                    target_base_dir = staging_dir
+                    log(f"    → Extracting to root")
                 else:
-                    log(f"    ❌ 'unzip_subfolder_to_root' failed: Ambiguous archive with multiple root folders: {', '.join(top_level_dirs)}")
-                    continue
+                    target_base_dir = staging_dir / target_dir_str
+                    target_base_dir.mkdir(parents=True, exist_ok=True)
+                    log(f"    → Extracting to: {target_dir_str}")
 
-                # Extract to temp dir first, then move files
+                # Extract to temp dir first
                 with tempfile.TemporaryDirectory(dir=asset_path.parent) as extract_dir:
                     self._extract_archive(asset_path, extract_dir)
-
-                    # Move files from subfolder to staging root
                     temp_root = Path(extract_dir)
-                    source_folder = temp_root / found_folder
 
-                    if source_folder.exists():
+                    # Find the source folder (support nested paths like "theme-patches-master/systemPatches")
+                    source_folder = temp_root / subfolder_name
+
+                    if source_folder.exists() and source_folder.is_dir():
+                        # Copy all files from source folder to target
                         for item in source_folder.rglob('*'):
                             if item.is_file():
                                 relative_path = item.relative_to(source_folder)
-                                target_path = staging_dir / relative_path
-                                target_path.parent.mkdir(parents=True, exist_ok=True)
-                                shutil.copy(str(item), str(target_path))
-                                all_processed_files.append(target_path)
+                                dest_path = target_base_dir / relative_path
+                                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                                shutil.copy(str(item), str(dest_path))
+                                all_processed_files.append(dest_path)
+                        log(f"    ✅ Extracted '{subfolder_name}' → {target_base_dir.relative_to(staging_dir)}")
                     else:
-                        log(f"    ❌ Source folder '{found_folder}' not found in extracted archive.")
+                        # Try to find the folder as a top-level directory (legacy behavior)
+                        top_level_dirs = set()
+                        for path in all_paths:
+                            if '/' in path or '\\' in path:
+                                top_level_dir = path.split('/')[0].split('\\')[0]
+                                top_level_dirs.add(top_level_dir)
+
+                        if subfolder_name in top_level_dirs:
+                            source_folder = temp_root / subfolder_name
+                            for item in source_folder.rglob('*'):
+                                if item.is_file():
+                                    relative_path = item.relative_to(source_folder)
+                                    dest_path = target_base_dir / relative_path
+                                    dest_path.parent.mkdir(parents=True, exist_ok=True)
+                                    shutil.copy(str(item), str(dest_path))
+                                    all_processed_files.append(dest_path)
+                            log(f"    ✅ Extracted '{subfolder_name}' → {target_base_dir.relative_to(staging_dir)}")
+                        else:
+                            log(f"    ❌ Source folder '{subfolder_name}' not found in archive.")
             else:
                 log(f"    ⚠️ Unimplemented action: {action}")
         

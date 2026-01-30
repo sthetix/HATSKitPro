@@ -1,24 +1,42 @@
 {
   "90dns_tester": {
     "asset_info": {
-      "version": "v1.0.4"
+      "version": "1.0.4"
     },
     "asset_patterns": [
       {
-        "pattern": "Switch_90DNS_tester.nro",
+        "pattern": "Switch_90DNS_tester-*.zip",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/switch/"
+            "action": "unzip_to_root"
           }
         ]
       }
     ],
     "category": "Homebrew Apps",
-    "default": false,
     "description": "Tests if 90DNS is configured correctly.",
     "name": "Switch 90DNS Tester",
-    "repo": "meganukebmp/Switch_90DNS_tester",
+    "repo": "sthetix/Switch_90DNS_tester",
+    "source_type": "github_release"
+  },
+  "CyberFoil": {
+    "asset_info": {
+      "version": "1.3.8"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "CyberFoil.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "A NSP, NSZ, XCI, XCZ & basic eShop Installer for Nintendo Switch",
+    "name": "CyberFoil",
+    "repo": "luketanti/CyberFoil",
     "source_type": "github_release"
   },
   "DowngradeFixer": {
@@ -43,7 +61,7 @@
   },
   "FuseCheck": {
     "asset_info": {
-      "version": "1.0.0"
+      "version": "v1.0.1"
     },
     "asset_patterns": [
       {
@@ -70,8 +88,8 @@
         "pattern": "Goldleaf.nro",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/switch/"
+            "action": "copy_file_to_auto_folder",
+            "target_path": "switch/"
           }
         ]
       }
@@ -104,7 +122,7 @@
   },
   "Lockpick_RCM_Pro": {
     "asset_info": {
-      "version": "1.9.16"
+      "version": "1.10.0"
     },
     "asset_patterns": [
       {
@@ -142,6 +160,27 @@
     "repo": "sthetix/NetMan",
     "source_type": "github_release"
   },
+  "NxThemeInstaller": {
+    "asset_info": {
+      "version": "v4.8.3"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "NXThemesInstaller.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file_to_auto_folder",
+            "target_path": "switch/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "Nintendo Switch Theme Installer",
+    "name": "NxThemeInstaller",
+    "repo": "exelix11/SwitchThemeInjector",
+    "source_type": "github_release"
+  },
   "Sigpatches": {
     "asset_info": {
       "version": "1.9.8"
@@ -161,6 +200,24 @@
     "name": "Sigpatches",
     "repo": "NexlifyHub/SystemEnhancer",
     "source_type": "github_release"
+  },
+  "Theme-Patches": {
+    "asset_info": {
+      "version": "N/A"
+    },
+    "asset_pattern": "not_applicable",
+    "category": "Patches",
+    "description": "Home menu patches needed for custom themes",
+    "name": "Theme-Patches",
+    "processing_steps": [
+      {
+        "action": "unzip_subfolder_to_path",
+        "subfolder_name": "theme-patches-master/systemPatches",
+        "target_path": "themes/"
+      }
+    ],
+    "repo": "https://github.com/exelix11/theme-patches/archive/refs/heads/master.zip",
+    "source_type": "direct_url"
   },
   "Warmboot-Extractor": {
     "asset_info": {
@@ -293,7 +350,7 @@
         "pattern": "emuiibo.zip",
         "processing_steps": [
           {
-            "action": "unzip_subfolder_to_root",
+            "action": "unzip_subfolder_to_path",
             "subfolder_name": "SdOut"
           }
         ]
@@ -307,7 +364,7 @@
   },
   "hekate": {
     "asset_info": {
-      "version": "v6.5.0"
+      "version": "V6.5.1"
     },
     "asset_patterns": [
       {
@@ -334,14 +391,13 @@
         "pattern": "JKSV.nro",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/switch/"
+            "action": "copy_file_to_auto_folder",
+            "target_path": "switch/"
           }
         ]
       }
     ],
     "category": "Homebrew Apps",
-    "default": false,
     "description": "Save file backup and restore tool.",
     "name": "JKSV",
     "repo": "J-D-K/JKSV",
@@ -440,8 +496,8 @@
         "pattern": "Quick-Reboot.nro",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/switch/"
+            "action": "copy_file_to_auto_folder",
+            "target_path": "switch/"
           }
         ]
       }
