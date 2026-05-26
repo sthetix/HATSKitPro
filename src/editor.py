@@ -1,7 +1,7 @@
 """
 editor.py - Component Editor Module
 Handles all Component Editor tab logic and functionality
-HATSKit Pro v1.2.8
+HATSKit Pro v1.3.0
 """
 
 import ttkbootstrap as ttk
@@ -10,6 +10,7 @@ import json
 import urllib.request
 import urllib.error
 import threading
+import datetime
 
 
 class ComponentEditor:
@@ -29,6 +30,7 @@ class ComponentEditor:
         """Connect event handlers to UI elements"""
         # Listbox selection
         self.gui.editor_listbox.bind('<<TreeviewSelect>>', self.on_editor_selection_change)
+        self.gui.editor_listbox.bind('<Button-1>', self.on_editor_list_click)
 
         # Asset pattern selection
         self.gui.editor_assets_list.bind('<<TreeviewSelect>>', self.on_asset_selection_change)
@@ -51,6 +53,12 @@ class ComponentEditor:
                         child.config(command=self.delete_component)
                     elif text == "Save Changes":
                         child.config(command=self.save_changes)
+                    elif text == "Load Preset":
+                        child.config(command=self.load_editor_preset)
+                    elif text == "Save Preset":
+                        child.config(command=self.save_editor_preset)
+                    elif text == "Delete Preset":
+                        child.config(command=self.delete_editor_preset)
                 find_buttons(child)
         
         find_buttons(self.gui.editor_tab)
@@ -112,7 +120,9 @@ class ComponentEditor:
             if search_term and search_term not in name:
                 continue
             
-            self.gui.editor_listbox.insert('', END, iid=comp_id, text=comp_data.get('name', comp_id))
+            checked = "[x]" if comp_id in self.gui.editor_preset_components else "[ ]"
+            self.gui.editor_listbox.insert('', END, iid=comp_id,
+                                           values=(checked, comp_data.get('name', comp_id)))
 
         # Re-apply selection
         if selected_id and self.gui.editor_listbox.exists(selected_id):
@@ -134,6 +144,111 @@ class ComponentEditor:
 
         self.current_selection = comp_id
         self.load_component_to_form(comp_id)
+
+    def on_editor_list_click(self, event):
+        """Toggle preset inclusion when clicking the checkbox column."""
+        region = self.gui.editor_listbox.identify_region(event.x, event.y)
+        column = self.gui.editor_listbox.identify_column(event.x)
+        item = self.gui.editor_listbox.identify_row(event.y)
+
+        if region != "cell" or column != "#1" or not item:
+            return
+
+        if item in self.gui.editor_preset_components:
+            self.gui.editor_preset_components.remove(item)
+        else:
+            self.gui.editor_preset_components.add(item)
+
+        values = list(self.gui.editor_listbox.item(item, 'values'))
+        if values:
+            values[0] = "[x]" if item in self.gui.editor_preset_components else "[ ]"
+            self.gui.editor_listbox.item(item, values=values)
+
+        return "break"
+
+    def load_editor_preset(self):
+        """Load a named preset into the editor checkbox column."""
+        preset_name = self.gui.editor_preset_dropdown.get().strip()
+        if not preset_name:
+            self.gui.show_custom_info("No Preset", "Please select a preset to load.")
+            return
+
+        preset = self.gui.presets_data.get(preset_name)
+        if not preset:
+            self.gui.show_custom_info("Preset Not Found", f"Preset '{preset_name}' was not found.")
+            return
+
+        self.gui.current_editor_preset = preset_name
+        self.gui.editor_preset_components = set(preset.get('components', []))
+        self.gui.editor_preset_name.delete(0, END)
+        self.gui.editor_preset_name.insert(0, preset_name)
+        self.filter_editor_list()
+
+    def save_editor_preset(self):
+        """Save checked components as a named preset."""
+        preset_name = self.gui.editor_preset_name.get().strip()
+        if not preset_name:
+            preset_name = self.gui.editor_preset_dropdown.get().strip()
+
+        if not preset_name:
+            self.gui.show_custom_info("Preset Name Required", "Please enter a preset name.")
+            return
+
+        selected_components = sorted([
+            comp_id for comp_id in self.gui.editor_preset_components
+            if comp_id in self.gui.components_data
+        ])
+        if not selected_components:
+            self.gui.show_custom_info("No Components", "Please check at least one component for this preset.")
+            return
+
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        existing = self.gui.presets_data.get(preset_name, {})
+        self.gui.presets_data[preset_name] = {
+            "components": selected_components,
+            "manual_versions": existing.get("manual_versions", {}),
+            "created_at": existing.get("created_at", now),
+            "updated_at": now
+        }
+        self.gui.save_presets_file()
+        self.gui.current_editor_preset = preset_name
+        self.gui.refresh_preset_controls()
+        self.gui.editor_preset_dropdown.set(preset_name)
+        if hasattr(self.gui, 'builder_preset_dropdown'):
+            self.gui.builder_preset_dropdown.set(preset_name)
+        self.gui.show_custom_info("Preset Saved", f"Preset '{preset_name}' saved with {len(selected_components)} components.")
+
+    def delete_editor_preset(self):
+        """Delete a named preset from presets.json."""
+        preset_name = self.gui.editor_preset_dropdown.get().strip()
+        if not preset_name:
+            self.gui.show_custom_info("No Preset", "Please select a preset to delete.")
+            return
+
+        if preset_name not in self.gui.presets_data:
+            self.gui.show_custom_info("Preset Not Found", f"Preset '{preset_name}' was not found.")
+            return
+
+        if not self.gui.show_custom_confirm("Delete Preset",
+                                            f"Delete preset '{preset_name}'?",
+                                            yes_text="Delete",
+                                            style="danger"):
+            return
+
+        del self.gui.presets_data[preset_name]
+        self.gui.save_presets_file()
+        self.gui.refresh_preset_controls()
+        self.gui.editor_preset_dropdown.set('')
+        self.gui.editor_preset_name.delete(0, END)
+        if hasattr(self.gui, 'builder_preset_dropdown') and self.gui.builder_preset_dropdown.get() == preset_name:
+            self.gui.builder_preset_dropdown.set('')
+
+        if self.gui.current_editor_preset == preset_name:
+            self.gui.current_editor_preset = None
+            self.gui.editor_preset_components = set(self.gui.components_data.keys())
+            self.filter_editor_list()
+
+        self.gui.show_custom_info("Preset Deleted", f"Preset '{preset_name}' has been deleted.")
 
     def load_component_to_form(self, comp_id):
         """Load a component's data into the editor form."""

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v1.2.8 - Main GUI Skeleton
+HATSKit Pro v1.3.0 - Main GUI Skeleton
 A unified tool for building and managing HATS packs
 """
 
@@ -19,10 +19,11 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.2.6"
+VERSION = "1.3.0"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
+PRESETS_FILE = 'presets.json'
 
 # Dummy data as fallback
 DUMMY_COMPONENTS = {
@@ -78,8 +79,12 @@ class HATSKitProGUI:
         self.components_data = {}
         self.config_data = {}
         self.last_build_data = {}
+        self.presets_data = {}
+        self.current_editor_preset = None
+        self.editor_preset_components = set()
         self.manual_versions = {}  # Store manual version inputs {comp_id: version_string}
         self.MANIFEST_FILE = MANIFEST_FILE # Make it an instance attribute
+        self.PRESETS_FILE = PRESETS_FILE # Make it an instance attribute
         self.VERSION = VERSION # Make it an instance attribute
         
         self.create_menu()
@@ -87,7 +92,9 @@ class HATSKitProGUI:
         # Load data files before creating UI
         self.load_components_file()
         self.load_last_build_file()
+        self.load_presets_file()
         self.load_config()
+        self.editor_preset_components = set(self.components_data.keys())
         
         self.create_main_ui()
         
@@ -96,6 +103,7 @@ class HATSKitProGUI:
         self.editor = ComponentEditor(self)
         self.manager = PackManager(self)
         self.post_processor = PostProcessor(self) # This module is now named extra.py
+        self.refresh_preset_controls()
 
         # Populate initial data
         self.builder.populate_builder_list()
@@ -149,6 +157,28 @@ class HATSKitProGUI:
                 json.dump(self.components_data, f, indent=2, sort_keys=True)
         except IOError as e:
             self.show_custom_info("Error", f"Failed to save {COMPONENTS_FILE}:\n{e}", width=450)
+
+    def load_presets_file(self):
+        """Load presets.json for named component selections"""
+        data = load_json_file(PRESETS_FILE)
+        self.presets_data = data if isinstance(data, dict) else {}
+        print(f"Loaded {len(self.presets_data)} presets from {PRESETS_FILE}")
+
+    def save_presets_file(self):
+        """Save named component presets to presets.json"""
+        try:
+            with open(PRESETS_FILE, 'w', encoding='utf-8') as f:
+                json.dump(self.presets_data, f, indent=2, sort_keys=True)
+        except IOError as e:
+            self.show_custom_info("Error", f"Failed to save {PRESETS_FILE}:\n{e}", width=450)
+
+    def refresh_preset_controls(self):
+        """Refresh preset dropdowns across tabs."""
+        preset_names = sorted(self.presets_data.keys())
+        for attr in ('editor_preset_dropdown', 'builder_preset_dropdown'):
+            widget = getattr(self, attr, None)
+            if widget:
+                widget['values'] = preset_names
             
     def create_menu(self):
         """Create top menu bar"""
@@ -177,8 +207,13 @@ class HATSKitProGUI:
         """Reload components.json and refresh UI"""
         self.load_components_file()
         self.load_last_build_file()
+        self.editor_preset_components = {
+            comp_id for comp_id in self.editor_preset_components
+            if comp_id in self.components_data
+        }
         self.builder.populate_builder_list()
         self.editor.populate_editor_list()
+        self.refresh_preset_controls()
         if show_info:
             self.show_custom_info("Reloaded", f"Loaded {len(self.components_data)} components")
         
@@ -387,6 +422,14 @@ class HATSKitProGUI:
                 font=('Segoe UI', 9)).pack(side=LEFT, padx=(0, 5))
         self.build_comment = ttk.Entry(comment_frame)
         self.build_comment.pack(side=LEFT, fill=X, expand=True)
+
+        # Preset controls
+        preset_frame = ttk.Frame(self.builder_tab, padding=(10, 0, 10, 5))
+        preset_frame.pack(fill=X, padx=10)
+        ttk.Label(preset_frame, text="Preset:").pack(side=LEFT, padx=(0, 5))
+        self.builder_preset_dropdown = ttk.Combobox(preset_frame, state="readonly", width=30)
+        self.builder_preset_dropdown.pack(side=LEFT, fill=X, expand=True, padx=(0, 5))
+        ttk.Button(preset_frame, text="Load Preset", bootstyle="info-outline").pack(side=LEFT, padx=5)
         
         # Action buttons at bottom
         action_frame = ttk.Frame(self.builder_tab, padding="10")
@@ -422,12 +465,16 @@ class HATSKitProGUI:
         
         self.editor_listbox = ttk.Treeview(
             list_frame,
-            columns=('name',),
-            show='tree',
+            columns=('include', 'name'),
+            show='headings',
             yscrollcommand=list_scroll.set,
             selectmode='browse',
             bootstyle="primary"
         )
+        self.editor_listbox.heading('include', text='Preset')
+        self.editor_listbox.heading('name', text='Component')
+        self.editor_listbox.column('include', width=70, minwidth=60, anchor=CENTER, stretch=False)
+        self.editor_listbox.column('name', width=220, minwidth=120)
         list_scroll.config(command=self.editor_listbox.yview)
         self.editor_listbox.pack(fill=BOTH, expand=True)
         
@@ -436,6 +483,21 @@ class HATSKitProGUI:
         list_button_frame.pack(fill=X, pady=(5, 0))
         ttk.Button(list_button_frame, text="Add New", bootstyle="success").pack(side=LEFT, padx=2)
         ttk.Button(list_button_frame, text="Delete", bootstyle="danger").pack(side=LEFT, padx=2)
+
+        preset_save_frame = ttk.Frame(left_frame)
+        preset_save_frame.pack(fill=X, pady=(5, 0))
+        ttk.Label(preset_save_frame, text="Preset name:").pack(side=LEFT, padx=(0, 5))
+        self.editor_preset_name = ttk.Entry(preset_save_frame, width=18)
+        self.editor_preset_name.pack(side=LEFT, fill=X, expand=True, padx=(0, 5))
+        ttk.Button(preset_save_frame, text="Save Preset", bootstyle="primary").pack(side=LEFT, padx=2)
+
+        preset_load_frame = ttk.Frame(left_frame)
+        preset_load_frame.pack(fill=X, pady=(3, 0))
+        ttk.Label(preset_load_frame, text="Load preset:").pack(side=LEFT, padx=(0, 5))
+        self.editor_preset_dropdown = ttk.Combobox(preset_load_frame, state="readonly", width=18)
+        self.editor_preset_dropdown.pack(side=LEFT, fill=X, expand=True, padx=(0, 5))
+        ttk.Button(preset_load_frame, text="Load Preset", bootstyle="info-outline").pack(side=LEFT, padx=2)
+        ttk.Button(preset_load_frame, text="Delete Preset", bootstyle="danger-outline").pack(side=LEFT, padx=2)
         
         # RIGHT PANEL
         right_frame = ttk.Labelframe(self.editor_tab, text="Component Details", padding=10)

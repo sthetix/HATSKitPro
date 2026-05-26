@@ -1,7 +1,7 @@
 """
 builder.py - Pack Builder Module
 Handles all Pack Builder tab logic and functionality
-HATSKit Pro v1.2.8
+HATSKit Pro v1.3.0
 """
 
 import ttkbootstrap as ttk
@@ -70,6 +70,8 @@ class PackBuilder:
                         child.config(command=self.show_component_details)
                     elif text == "Build Pack":
                         child.config(command=self.build_pack)
+                    elif text == "Load Preset":
+                        child.config(command=self.load_builder_preset)
                 find_buttons(child)
         
         find_buttons(self.gui.builder_tab)
@@ -405,6 +407,46 @@ class PackBuilder:
         """Clear all selections"""
         self.gui.builder_list.selection_remove(self.gui.builder_list.selection())
         self.update_builder_preview()
+
+    def load_builder_preset(self):
+        """Load a named preset into the Pack Builder selection."""
+        preset_name = self.gui.builder_preset_dropdown.get().strip()
+        if not preset_name:
+            self.gui.show_custom_info("No Preset", "Please select a preset to load.")
+            return
+
+        preset = self.gui.presets_data.get(preset_name)
+        if not preset:
+            self.gui.show_custom_info("Preset Not Found", f"Preset '{preset_name}' was not found.")
+            return
+
+        preset_components = preset.get('components', [])
+        missing_components = []
+
+        self.gui.builder_search.delete(0, END)
+        self.gui.builder_category_filter.set('All Categories')
+        self.filter_builder_components()
+        self.gui.builder_list.selection_remove(self.gui.builder_list.selection())
+        for comp_id in preset_components:
+            if self.gui.builder_list.exists(comp_id):
+                self.gui.builder_list.selection_add(comp_id)
+            else:
+                missing_components.append(comp_id)
+
+        self.gui.manual_versions = {
+            comp_id: version
+            for comp_id, version in preset.get('manual_versions', {}).items()
+            if comp_id in self.gui.components_data
+        }
+        self.filter_builder_components()
+        self.update_builder_preview()
+
+        message = f"Loaded preset '{preset_name}' with {len(preset_components) - len(missing_components)} components."
+        if missing_components:
+            message += "\n\nMissing components skipped:\n" + "\n".join(missing_components[:10])
+            if len(missing_components) > 10:
+                message += f"\n...and {len(missing_components) - 10} more"
+        self.gui.show_custom_info("Preset Loaded", message, height=300 if missing_components else 220)
     
     def show_component_details(self):
         """Show detailed component information"""
