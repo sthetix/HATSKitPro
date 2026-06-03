@@ -1,7 +1,7 @@
 """
 editor.py - Component Editor Module
 Handles all Component Editor tab logic and functionality
-HATSKit Pro v1.3.0
+HATSKit Pro v2.0.0
 """
 
 import ttkbootstrap as ttk
@@ -11,6 +11,11 @@ import urllib.request
 import urllib.error
 import threading
 import datetime
+import shutil
+import tempfile
+import zipfile
+from pathlib import Path
+from tkinter import filedialog
 
 
 class ComponentEditor:
@@ -51,6 +56,10 @@ class ComponentEditor:
                         child.config(command=self.add_new_component)
                     elif text == "Delete":
                         child.config(command=self.delete_component)
+                    elif text == "Edit Skeleton":
+                        child.config(command=self.open_skeleton_editor)
+                    elif text == "Edit Extras":
+                        child.config(command=self.open_component_extras_editor)
                     elif text == "Save Changes":
                         child.config(command=self.save_changes)
                     elif text == "Load Preset":
@@ -95,6 +104,726 @@ class ComponentEditor:
                     widget.config(command=self.edit_step)
                 elif text == "Remove Step":
                     widget.config(command=self.remove_step)
+
+    # ==================== Skeleton ZIP Editor ====================
+
+    def open_skeleton_editor(self):
+        """Open a lightweight editor for assets/skeleton.zip contents."""
+        skeleton_path = Path("assets") / "skeleton.zip"
+        if not skeleton_path.exists():
+            self.gui.show_custom_info(
+                "Skeleton Not Found",
+                f"Could not find:\n{skeleton_path}\n\nCreate or restore the skeleton ZIP first.",
+                width=500,
+                height=240
+            )
+            return
+
+        dialog = ttk.Toplevel(self.gui.root)
+        dialog.title("Skeleton Editor")
+        dialog.geometry("850x560")
+        dialog.transient(self.gui.root)
+        dialog.grab_set()
+
+        root_frame = ttk.Frame(dialog, padding=12)
+        root_frame.pack(fill=BOTH, expand=True)
+
+        header_frame = ttk.Frame(root_frame)
+        header_frame.pack(fill=X, pady=(0, 8))
+        ttk.Label(
+            header_frame,
+            text="assets/skeleton.zip",
+            font=('Segoe UI', 10, 'bold')
+        ).pack(side=LEFT)
+        skeleton_status = ttk.Label(header_frame, text="", bootstyle="secondary")
+        skeleton_status.pack(side=LEFT, padx=(10, 0))
+
+        body_frame = ttk.Frame(root_frame)
+        body_frame.pack(fill=BOTH, expand=True)
+
+        list_frame = ttk.Frame(body_frame)
+        list_frame.pack(side=LEFT, fill=BOTH, expand=True)
+
+        tree_scroll = ttk.Scrollbar(list_frame, orient=VERTICAL, bootstyle="primary-round")
+        tree_scroll.pack(side=RIGHT, fill=Y)
+
+        skeleton_tree = ttk.Treeview(
+            list_frame,
+            columns=('type', 'size'),
+            show='tree headings',
+            yscrollcommand=tree_scroll.set,
+            selectmode='browse',
+            bootstyle="primary"
+        )
+        skeleton_tree.heading('#0', text='Path', anchor=W)
+        skeleton_tree.heading('type', text='Type', anchor=CENTER)
+        skeleton_tree.heading('size', text='Size', anchor=E)
+        skeleton_tree.column('#0', width=500, minwidth=260)
+        skeleton_tree.column('type', width=90, minwidth=70, anchor=CENTER, stretch=False)
+        skeleton_tree.column('size', width=90, minwidth=70, anchor=E, stretch=False)
+        skeleton_tree.pack(side=LEFT, fill=BOTH, expand=True)
+        tree_scroll.config(command=skeleton_tree.yview)
+
+        button_frame = ttk.Frame(body_frame)
+        button_frame.pack(side=RIGHT, fill=Y, padx=(8, 0))
+
+        text_extensions = {
+            '.ini', '.txt', '.config', '.cfg', '.json', '.xml', '.md', '.lst',
+            '.conf', '.properties', '.log'
+        }
+
+        def classify(path):
+            suffix = Path(path).suffix.lower()
+            if suffix in text_extensions:
+                return "text"
+            return "file"
+
+        def format_size(size):
+            if size < 1024:
+                return f"{size} B"
+            if size < 1024 * 1024:
+                return f"{size / 1024:.1f} KB"
+            return f"{size / (1024 * 1024):.1f} MB"
+
+        def selected_path():
+            selected = skeleton_tree.selection()
+            if not selected:
+                return None
+            return skeleton_tree.item(selected[0], 'text')
+
+        def load_entries():
+            for item in skeleton_tree.get_children():
+                skeleton_tree.delete(item)
+
+            try:
+                with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
+                    infos = [
+                        info for info in zip_ref.infolist()
+                        if not info.is_dir()
+                    ]
+            except Exception as e:
+                self.gui.show_custom_info(
+                    "Skeleton Error",
+                    f"Failed to read skeleton ZIP:\n{e}",
+                    parent=dialog,
+                    width=500,
+                    height=220
+                )
+                return
+
+            for info in sorted(infos, key=lambda item: item.filename.lower()):
+                path = info.filename.replace('\\', '/')
+                skeleton_tree.insert(
+                    '',
+                    END,
+                    text=path,
+                    values=(classify(path), format_size(info.file_size))
+                )
+            skeleton_status.config(text=f"{len(infos)} files")
+
+        def rewrite_skeleton(updates=None, deletes=None):
+            updates = updates or {}
+            deletes = set(deletes or [])
+
+            temp_dir = Path(tempfile.mkdtemp(prefix="hats_skeleton_"))
+            temp_zip = temp_dir / "skeleton.zip"
+            try:
+                with zipfile.ZipFile(skeleton_path, 'r') as src_zip, \
+                        zipfile.ZipFile(temp_zip, 'w', zipfile.ZIP_DEFLATED) as dst_zip:
+                    for info in src_zip.infolist():
+                        normalized_name = info.filename.replace('\\', '/')
+                        if normalized_name in deletes or normalized_name in updates:
+                            continue
+                        dst_zip.writestr(info, src_zip.read(info.filename))
+
+                    for arcname, payload in updates.items():
+                        normalized_name = arcname.replace('\\', '/').lstrip('/')
+                        if isinstance(payload, bytes):
+                            dst_zip.writestr(normalized_name, payload)
+                        else:
+                            dst_zip.write(payload, normalized_name)
+
+                shutil.move(str(temp_zip), str(skeleton_path))
+            finally:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+
+            load_entries()
+
+        def edit_text_file():
+            path = selected_path()
+            if not path:
+                self.gui.show_custom_info("No Selection", "Please select a skeleton file to edit.", parent=dialog)
+                return
+
+            if classify(path) != "text":
+                self.gui.show_custom_info(
+                    "Binary File",
+                    "This file type is treated as binary/resource data.\nUse Replace File instead.",
+                    parent=dialog,
+                    width=450,
+                    height=220
+                )
+                return
+
+            try:
+                with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
+                    raw = zip_ref.read(path)
+                content = raw.decode('utf-8')
+            except UnicodeDecodeError:
+                try:
+                    content = raw.decode('utf-8-sig')
+                except Exception:
+                    self.gui.show_custom_info(
+                        "Encoding Error",
+                        "Could not decode this file as UTF-8 text.",
+                        parent=dialog,
+                        width=450,
+                        height=200
+                    )
+                    return
+            except Exception as e:
+                self.gui.show_custom_info("Read Error", f"Failed to read file:\n{e}", parent=dialog)
+                return
+
+            editor = ttk.Toplevel(dialog)
+            editor.title(f"Edit {path}")
+            editor.geometry("820x620")
+            editor.transient(dialog)
+            editor.grab_set()
+
+            editor_frame = ttk.Frame(editor, padding=10)
+            editor_frame.pack(fill=BOTH, expand=True)
+
+            ttk.Label(editor_frame, text=path, font=('Segoe UI', 9, 'bold')).pack(anchor=W, pady=(0, 6))
+
+            text_frame = ttk.Frame(editor_frame)
+            text_frame.pack(fill=BOTH, expand=True)
+            text_scroll = ttk.Scrollbar(text_frame, orient=VERTICAL, bootstyle="primary-round")
+            text_scroll.pack(side=RIGHT, fill=Y)
+            text_widget = ttk.Text(text_frame, wrap='none', undo=True, yscrollcommand=text_scroll.set)
+            text_widget.pack(side=LEFT, fill=BOTH, expand=True)
+            text_scroll.config(command=text_widget.yview)
+            text_widget.insert('1.0', content)
+
+            buttons = ttk.Frame(editor_frame)
+            buttons.pack(fill=X, pady=(10, 0))
+
+            def save_text():
+                new_content = text_widget.get('1.0', END)
+                if new_content.endswith('\n'):
+                    # Tk Text always appends a final newline. Keep one, not two.
+                    new_content = new_content[:-1]
+                rewrite_skeleton(updates={path: new_content.encode('utf-8')})
+                editor.destroy()
+                self.gui.show_custom_info("Saved", f"Updated:\n{path}", parent=dialog, width=450, height=180)
+
+            ttk.Button(buttons, text="Save Text", bootstyle="success", command=save_text).pack(side=RIGHT, padx=4)
+            ttk.Button(buttons, text="Cancel", bootstyle="secondary", command=editor.destroy).pack(side=RIGHT, padx=4)
+            self.gui.center_window(editor)
+
+        def prompt_target_path(title, default_value=""):
+            prompt = ttk.Toplevel(dialog)
+            prompt.title(title)
+            prompt.geometry("560x210")
+            prompt.transient(dialog)
+            prompt.grab_set()
+
+            prompt_frame = ttk.Frame(prompt, padding=18)
+            prompt_frame.pack(fill=BOTH, expand=True)
+            ttk.Label(prompt_frame, text="Target path inside skeleton.zip:", font=('Segoe UI', 9, 'bold')).pack(anchor=W)
+            target_entry = ttk.Entry(prompt_frame)
+            target_entry.pack(fill=X, pady=(6, 10))
+            target_entry.insert(0, default_value.replace('\\', '/').lstrip('/'))
+            target_entry.focus_set()
+
+            result = {'path': None}
+
+            def accept():
+                target = target_entry.get().strip().replace('\\', '/').lstrip('/')
+                if not target:
+                    self.gui.show_custom_info("Missing Path", "Please enter a target path.", parent=prompt)
+                    return
+                result['path'] = target
+                prompt.destroy()
+
+            buttons = ttk.Frame(prompt_frame)
+            buttons.pack(fill=X)
+            ttk.Button(buttons, text="OK", bootstyle="primary", command=accept).pack(side=RIGHT, padx=4)
+            ttk.Button(buttons, text="Cancel", bootstyle="secondary", command=prompt.destroy).pack(side=RIGHT, padx=4)
+
+            prompt.bind('<Return>', lambda _event: accept())
+            self.gui.center_window(prompt)
+            prompt.wait_window()
+            return result['path']
+
+        def add_or_replace_file(replace=False):
+            current_path = selected_path() if replace else ""
+            file_path = filedialog.askopenfilename(
+                title="Select file to add to skeleton",
+                parent=dialog,
+                filetypes=[("All files", "*.*")]
+            )
+            if not file_path:
+                return
+
+            default_target = current_path or Path(file_path).name
+            target = prompt_target_path("Replace File" if replace else "Add File", default_target)
+            if not target:
+                return
+
+            if target != current_path and self._skeleton_member_exists(skeleton_path, target):
+                if not self.gui.show_custom_confirm(
+                    "Overwrite Existing File",
+                    f"'{target}' already exists in skeleton.zip.\n\nOverwrite it?",
+                    yes_text="Overwrite",
+                    style="warning",
+                    width=500,
+                    height=240
+                ):
+                    return
+
+            rewrite_skeleton(updates={target: Path(file_path)})
+            self.gui.show_custom_info("Saved", f"Added/updated:\n{target}", parent=dialog, width=450, height=180)
+
+        def add_text_file():
+            target = prompt_target_path("Add Text File", "")
+            if not target:
+                return
+            if self._skeleton_member_exists(skeleton_path, target):
+                if not self.gui.show_custom_confirm(
+                    "Overwrite Existing File",
+                    f"'{target}' already exists in skeleton.zip.\n\nOverwrite it?",
+                    yes_text="Overwrite",
+                    style="warning",
+                    width=500,
+                    height=240
+                ):
+                    return
+            rewrite_skeleton(updates={target: b""})
+            load_entries()
+            for item in skeleton_tree.get_children():
+                if skeleton_tree.item(item, 'text') == target:
+                    skeleton_tree.selection_set(item)
+                    skeleton_tree.focus(item)
+                    skeleton_tree.see(item)
+                    break
+            edit_text_file()
+
+        def delete_file():
+            path = selected_path()
+            if not path:
+                self.gui.show_custom_info("No Selection", "Please select a skeleton file to remove.", parent=dialog)
+                return
+            if not self.gui.show_custom_confirm(
+                "Remove Skeleton File",
+                f"Remove this file from skeleton.zip?\n\n{path}",
+                yes_text="Remove",
+                style="danger",
+                width=500,
+                height=240
+            ):
+                return
+            rewrite_skeleton(deletes=[path])
+
+        ttk.Button(button_frame, text="Edit Text", bootstyle="primary-outline", width=16, command=edit_text_file).pack(pady=3)
+        ttk.Button(button_frame, text="Add Text", bootstyle="success-outline", width=16, command=add_text_file).pack(pady=3)
+        ttk.Button(button_frame, text="Add File", bootstyle="success-outline", width=16, command=lambda: add_or_replace_file(False)).pack(pady=3)
+        ttk.Button(button_frame, text="Replace File", bootstyle="info-outline", width=16, command=lambda: add_or_replace_file(True)).pack(pady=3)
+        ttk.Button(button_frame, text="Remove", bootstyle="danger-outline", width=16, command=delete_file).pack(pady=3)
+        ttk.Button(button_frame, text="Refresh", bootstyle="secondary-outline", width=16, command=load_entries).pack(pady=(16, 3))
+        ttk.Button(button_frame, text="Close", bootstyle="secondary", width=16, command=dialog.destroy).pack(side=BOTTOM, pady=3)
+
+        skeleton_tree.bind('<Double-Button-1>', lambda _event: edit_text_file())
+
+        load_entries()
+        self.gui.center_window(dialog)
+
+    def _skeleton_member_exists(self, skeleton_path, member_path):
+        """Return True when a normalized member path exists in skeleton.zip."""
+        normalized = member_path.replace('\\', '/').lstrip('/')
+        try:
+            with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
+                return normalized in {name.replace('\\', '/') for name in zip_ref.namelist()}
+        except Exception:
+            return False
+
+    # ==================== Component Extras Editor ====================
+
+    def open_component_extras_editor(self):
+        """Open the component-owned extras editor for the selected component."""
+        comp_id = self.current_selection
+        if not comp_id:
+            self.gui.show_custom_info(
+                "No Component",
+                "Please save or select a component before editing extras.",
+                width=450,
+                height=200
+            )
+            return
+
+        comp_data = self.gui.components_data.get(comp_id)
+        if not comp_data:
+            self.gui.show_custom_info("No Component", "Selected component was not found.", width=400)
+            return
+
+        extras_dir = Path("assets") / "component_extras" / comp_id
+        extras_dir.mkdir(parents=True, exist_ok=True)
+
+        dialog = ttk.Toplevel(self.gui.root)
+        dialog.title(f"Component Extras - {comp_data.get('name', comp_id)}")
+        dialog.geometry("1080x620")
+        dialog.minsize(1040, 600)
+        dialog.transient(self.gui.root)
+        dialog.grab_set()
+
+        root_frame = ttk.Frame(dialog, padding=12)
+        root_frame.pack(fill=BOTH, expand=True)
+
+        header = ttk.Frame(root_frame)
+        header.pack(fill=X, pady=(0, 8))
+        ttk.Label(header, text=comp_data.get('name', comp_id), font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
+        extras_status = ttk.Label(header, text="", bootstyle="secondary")
+        extras_status.pack(side=LEFT, padx=(10, 0))
+
+        body = ttk.Frame(root_frame)
+        body.pack(fill=BOTH, expand=True)
+
+        list_frame = ttk.Frame(body)
+        list_frame.pack(side=LEFT, fill=BOTH, expand=True)
+
+        scroll = ttk.Scrollbar(list_frame, orient=VERTICAL, bootstyle="primary-round")
+        scroll.pack(side=RIGHT, fill=Y)
+
+        extras_tree = ttk.Treeview(
+            list_frame,
+            columns=('enabled', 'type', 'target', 'source'),
+            show='headings',
+            yscrollcommand=scroll.set,
+            selectmode='browse',
+            bootstyle="primary"
+        )
+        extras_tree.heading('enabled', text='On', anchor=CENTER)
+        extras_tree.heading('type', text='Type', anchor=CENTER)
+        extras_tree.heading('target', text='Target Path', anchor=W)
+        extras_tree.heading('source', text='Source', anchor=W)
+        extras_tree.column('enabled', width=45, minwidth=40, anchor=CENTER, stretch=False)
+        extras_tree.column('type', width=70, minwidth=60, anchor=CENTER, stretch=False)
+        extras_tree.column('target', width=280, minwidth=160)
+        extras_tree.column('source', width=360, minwidth=200)
+        extras_tree.pack(side=LEFT, fill=BOTH, expand=True)
+        scroll.config(command=extras_tree.yview)
+
+        button_frame = ttk.Frame(body)
+        button_frame.pack(side=RIGHT, fill=Y, padx=(12, 0))
+        button_frame.configure(width=170)
+        button_frame.pack_propagate(False)
+
+        def normalize_target(target):
+            target = target.strip().replace('\\', '/').lstrip('/')
+            if not target or target.startswith('../') or '/..' in target or target == '..':
+                return None
+            return target
+
+        def default_source_for(target):
+            return extras_dir / target
+
+        def is_text_target(path):
+            return Path(path).suffix.lower() in {
+                '.ini', '.txt', '.config', '.cfg', '.json', '.xml', '.md',
+                '.lst', '.conf', '.properties', '.log'
+            }
+
+        def get_extras():
+            return comp_data.setdefault('component_extras', [])
+
+        def selected_index():
+            selected = extras_tree.selection()
+            if not selected:
+                return None
+            return int(selected[0])
+
+        def refresh_list():
+            for item in extras_tree.get_children():
+                extras_tree.delete(item)
+
+            extras = get_extras()
+            for idx, extra in enumerate(extras):
+                enabled = "[x]" if extra.get('enabled', True) else "[ ]"
+                extra_type = extra.get('type', 'file')
+                target = extra.get('target', '')
+                source = extra.get('source', '')
+                extras_tree.insert('', END, iid=str(idx), values=(enabled, extra_type, target, source))
+
+            extras_status.config(text=f"{len(extras)} extras")
+            if hasattr(self.gui, 'editor_extras_info'):
+                self.gui.editor_extras_info.config(text=f"{len(extras)} extras")
+
+        def persist():
+            self.gui.components_data[comp_id] = comp_data
+            self.gui.save_components_file()
+            refresh_list()
+
+        def prompt_target(title, default_value="", label="Target path inside pack:", allow_empty=False):
+            prompt = ttk.Toplevel(dialog)
+            prompt.title(title)
+            prompt.geometry("560x210")
+            prompt.transient(dialog)
+            prompt.grab_set()
+
+            frame = ttk.Frame(prompt, padding=18)
+            frame.pack(fill=BOTH, expand=True)
+            ttk.Label(frame, text=label, font=('Segoe UI', 9, 'bold')).pack(anchor=W)
+            entry = ttk.Entry(frame)
+            entry.pack(fill=X, pady=(6, 10))
+            entry.insert(0, default_value)
+            entry.focus_set()
+
+            if label.startswith("Target folder"):
+                ttk.Label(
+                    frame,
+                    text="The selected file name will be kept automatically.",
+                    font=('Segoe UI', 8),
+                    foreground='gray'
+                ).pack(anchor=W, pady=(0, 8))
+
+            result = {'target': None}
+
+            def accept():
+                raw_target = entry.get().strip()
+                if allow_empty and raw_target in ("", "/", "\\"):
+                    result['target'] = ""
+                    prompt.destroy()
+                    return
+
+                target = normalize_target(raw_target)
+                if not target:
+                    self.gui.show_custom_info("Invalid Target", "Enter a relative pack path.", parent=prompt)
+                    return
+                result['target'] = target
+                prompt.destroy()
+
+            buttons = ttk.Frame(frame)
+            buttons.pack(fill=X)
+            ttk.Button(buttons, text="OK", bootstyle="primary", command=accept).pack(side=RIGHT, padx=4)
+            ttk.Button(buttons, text="Cancel", bootstyle="secondary", command=prompt.destroy).pack(side=RIGHT, padx=4)
+            prompt.bind('<Return>', lambda _event: accept())
+            self.gui.center_window(prompt)
+            prompt.wait_window()
+            return result['target']
+
+        def prompt_target_folder(title, default_value=""):
+            target = prompt_target(title, default_value, label="Target folder inside pack:", allow_empty=True)
+            if target is None:
+                return None
+            if target == "":
+                return ""
+            return target.rstrip('/') + '/'
+
+        def edit_text_extra(existing_index):
+            extras = get_extras()
+            extra = extras[existing_index]
+            target = extra.get('target', '')
+            if not target:
+                return
+
+            source_path = Path(extra.get('source')) if extra.get('source') else default_source_for(target)
+            source_path.parent.mkdir(parents=True, exist_ok=True)
+            content = ""
+            if source_path.exists():
+                try:
+                    content = source_path.read_text(encoding='utf-8')
+                except UnicodeDecodeError:
+                    self.gui.show_custom_info(
+                        "Encoding Error",
+                        "This text extra is not valid UTF-8.",
+                        parent=dialog,
+                        width=450,
+                        height=200
+                    )
+                    return
+
+            editor = ttk.Toplevel(dialog)
+            editor.title(f"Edit Text Extra - {target}")
+            editor.geometry("820x620")
+            editor.transient(dialog)
+            editor.grab_set()
+
+            frame = ttk.Frame(editor, padding=10)
+            frame.pack(fill=BOTH, expand=True)
+            ttk.Label(frame, text=target, font=('Segoe UI', 9, 'bold')).pack(anchor=W, pady=(0, 6))
+
+            text_frame = ttk.Frame(frame)
+            text_frame.pack(fill=BOTH, expand=True)
+            text_scroll = ttk.Scrollbar(text_frame, orient=VERTICAL, bootstyle="primary-round")
+            text_scroll.pack(side=RIGHT, fill=Y)
+            text_widget = ttk.Text(text_frame, wrap='none', undo=True, yscrollcommand=text_scroll.set)
+            text_widget.pack(side=LEFT, fill=BOTH, expand=True)
+            text_scroll.config(command=text_widget.yview)
+            text_widget.insert('1.0', content)
+
+            buttons = ttk.Frame(frame)
+            buttons.pack(fill=X, pady=(10, 0))
+
+            def save_text():
+                new_content = text_widget.get('1.0', END)
+                if new_content.endswith('\n'):
+                    new_content = new_content[:-1]
+                source_path.write_text(new_content, encoding='utf-8')
+
+                new_extra = {
+                    "type": "text",
+                    "target": target,
+                    "source": str(source_path).replace('\\', '/'),
+                    "enabled": extra.get('enabled', True),
+                    "overwrite": extra.get('overwrite', True)
+                }
+                extras[existing_index] = new_extra
+                persist()
+                editor.destroy()
+
+            ttk.Button(buttons, text="Save Text", bootstyle="success", command=save_text).pack(side=RIGHT, padx=4)
+            ttk.Button(buttons, text="Cancel", bootstyle="secondary", command=editor.destroy).pack(side=RIGHT, padx=4)
+            self.gui.center_window(editor)
+
+        def add_file_extra(existing_index=None):
+            extras = get_extras()
+            extra = extras[existing_index] if existing_index is not None else None
+            picked = filedialog.askopenfilename(
+                title="Select extra file",
+                parent=dialog,
+                filetypes=[("All files", "*.*")]
+            )
+            if not picked:
+                return
+
+            picked_name = Path(picked).name
+            default_folder = ""
+            if extra and extra.get('target'):
+                target_path = Path(extra.get('target').replace('\\', '/'))
+                default_folder = str(target_path.parent).replace('\\', '/')
+                if default_folder == ".":
+                    default_folder = ""
+            target_folder = prompt_target_folder("Replace File Extra" if extra else "Add File Extra", default_folder)
+            if target_folder is None:
+                return
+            target = f"{target_folder}{picked_name}"
+
+            dest = default_source_for(target)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(picked, dest)
+
+            new_extra = {
+                "type": "text" if is_text_target(target) else "file",
+                "target": target,
+                "source": str(dest).replace('\\', '/'),
+                "enabled": extra.get('enabled', True) if extra else True,
+                "overwrite": extra.get('overwrite', True) if extra else True
+            }
+            if existing_index is None:
+                extras.append(new_extra)
+            else:
+                extras[existing_index] = new_extra
+            persist()
+
+        def scan_extras_folder():
+            extras = get_extras()
+            existing_by_target = {
+                extra.get('target'): extra
+                for extra in extras
+                if extra.get('target')
+            }
+
+            files = sorted(path for path in extras_dir.rglob('*') if path.is_file())
+            if not files:
+                self.gui.show_custom_info(
+                    "No Files Found",
+                    f"No files found in:\n{extras_dir}",
+                    parent=dialog,
+                    width=500,
+                    height=220
+                )
+                return
+
+            added = 0
+            updated = 0
+            for path in files:
+                target = str(path.relative_to(extras_dir)).replace('\\', '/')
+                source = str(path).replace('\\', '/')
+                extra_type = "text" if is_text_target(target) else "file"
+
+                if target in existing_by_target:
+                    existing_by_target[target].update({
+                        "type": extra_type,
+                        "source": source
+                    })
+                    updated += 1
+                else:
+                    extras.append({
+                        "type": extra_type,
+                        "target": target,
+                        "source": source,
+                        "enabled": True,
+                        "overwrite": True
+                    })
+                    added += 1
+
+            persist()
+            self.gui.show_custom_info(
+                "Scan Complete",
+                f"Scanned:\n{extras_dir}\n\nAdded: {added}\nUpdated: {updated}",
+                parent=dialog,
+                width=520,
+                height=260
+            )
+
+        def edit_selected():
+            idx = selected_index()
+            if idx is None:
+                self.gui.show_custom_info("No Selection", "Please select an extra to edit.", parent=dialog)
+                return
+            extra = get_extras()[idx]
+            if extra.get('type') == 'text':
+                edit_text_extra(idx)
+            else:
+                add_file_extra(idx)
+
+        def toggle_selected():
+            idx = selected_index()
+            if idx is None:
+                self.gui.show_custom_info("No Selection", "Please select an extra to toggle.", parent=dialog)
+                return
+            extras = get_extras()
+            extras[idx]['enabled'] = not extras[idx].get('enabled', True)
+            persist()
+
+        def remove_selected():
+            idx = selected_index()
+            if idx is None:
+                self.gui.show_custom_info("No Selection", "Please select an extra to remove.", parent=dialog)
+                return
+            extra = get_extras()[idx]
+            if not self.gui.show_custom_confirm(
+                "Remove Extra",
+                f"Remove this component extra?\n\n{extra.get('target', '')}",
+                yes_text="Remove",
+                style="danger",
+                width=500,
+                height=240
+            ):
+                return
+            del get_extras()[idx]
+            persist()
+
+        ttk.Button(button_frame, text="Add File", bootstyle="success-outline", command=lambda: add_file_extra()).pack(fill=X, pady=3)
+        ttk.Button(button_frame, text="Scan Folder", bootstyle="primary-outline", command=scan_extras_folder).pack(fill=X, pady=3)
+        ttk.Button(button_frame, text="Edit", bootstyle="info-outline", command=edit_selected).pack(fill=X, pady=3)
+        ttk.Button(button_frame, text="Enable/Disable", bootstyle="warning-outline", command=toggle_selected).pack(fill=X, pady=3)
+        ttk.Button(button_frame, text="Remove", bootstyle="danger-outline", command=remove_selected).pack(fill=X, pady=3)
+        ttk.Button(button_frame, text="Close", bootstyle="secondary", command=dialog.destroy).pack(side=BOTTOM, fill=X, pady=3)
+
+        extras_tree.bind('<Double-Button-1>', lambda _event: edit_selected())
+        refresh_list()
+        self.gui.center_window(dialog)
     
     def populate_editor_list(self):
         """Populate editor component list"""
@@ -121,8 +850,11 @@ class ComponentEditor:
                 continue
             
             checked = "[x]" if comp_id in self.gui.editor_preset_components else "[ ]"
+            display_name = comp_data.get('name', comp_id)
+            if comp_data.get('component_extras'):
+                display_name = f"{display_name}  [extras]"
             self.gui.editor_listbox.insert('', END, iid=comp_id,
-                                           values=(checked, comp_data.get('name', comp_id)))
+                                           values=(checked, display_name))
 
         # Re-apply selection
         if selected_id and self.gui.editor_listbox.exists(selected_id):
@@ -266,6 +998,10 @@ class ComponentEditor:
 
         self.gui.editor_category.set(comp_data.get('category', ''))
 
+        if hasattr(self.gui, 'editor_extras_info'):
+            extras_count = len(comp_data.get('component_extras', []))
+            self.gui.editor_extras_info.config(text=f"{extras_count} extras")
+
         # Enhanced description handling - supports both dict and string formats
         self.gui.editor_description.delete('1.0', END)
         desc_obj = comp_data.get('description', comp_data.get('descriptions', ''))
@@ -380,6 +1116,8 @@ class ComponentEditor:
         self.selected_asset_item = None
         self.clear_steps_list()
         self.gui.editor_steps_info.config(text="(no asset selected)")
+        if hasattr(self.gui, 'editor_extras_info'):
+            self.gui.editor_extras_info.config(text="0 extras")
 
     def add_new_component(self):
         """Add new component with proper initialization"""
@@ -528,7 +1266,8 @@ class ComponentEditor:
 
         # Collect data from form
         # Preserve existing asset_info or create new one
-        existing_asset_info = self.gui.components_data.get(self.current_selection or comp_id, {}).get('asset_info', {})
+        existing_component_data = self.gui.components_data.get(self.current_selection or comp_id, {})
+        existing_asset_info = existing_component_data.get('asset_info', {})
 
         # Update version in asset_info if extracted from direct URL
         if extracted_version:
@@ -542,6 +1281,8 @@ class ComponentEditor:
             "repo": repo_value,
             "asset_info": existing_asset_info
         }
+        if existing_component_data.get('component_extras'):
+            new_data['component_extras'] = existing_component_data.get('component_extras', [])
 
         # Handle asset patterns (multi-asset vs single-asset)
         if source_type == 'github_release':

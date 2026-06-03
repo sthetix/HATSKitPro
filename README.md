@@ -1,6 +1,6 @@
 # HATSKit Pro
 
-A unified tool for building and managing HATS packs.
+A unified tool for building, editing, and managing configurable HATS packs.
 
 <div align="center">
   <img src="image/preview.png" alt="HATSKit Pro Banner" width="75%">
@@ -9,6 +9,10 @@ A unified tool for building and managing HATS packs.
 ## Overview
 
 HATSKit Pro is a comprehensive Windows application that simplifies the process of creating, editing, and managing HATS (Homebrew Application Title Server) packs for Nintendo Switch custom firmware. With an intuitive graphical interface, you can easily build custom packs, edit component definitions, and manage installed components on your SD card.
+
+HATSKit Pro 2.0 adds a cleaner pack architecture: component-owned extras. Configs and resources such as `bootloader/hekate_ipl.ini`, Hekate BMP files, Ultrahand config files, DBI configs, and other component-specific files can now live with the component that owns them instead of being hidden inside a global `skeleton.zip`.
+
+`assets/skeleton.zip` is now optional legacy fallback. If it exists, the builder extracts it first. If it is missing, the builder continues and relies on component extras and downloaded component assets.
 
 ## Features
 
@@ -19,6 +23,8 @@ HATSKit Pro is a comprehensive Windows application that simplifies the process o
 - Fetch latest version information from GitHub
 - Build custom HATS packs with your chosen components
 - Automatic version detection and download
+- Apply component-owned extras only when their component is selected
+- Continue building without `assets/skeleton.zip` when extras provide the migrated files
 
 ### Component Editor
 - View and edit component definitions
@@ -27,6 +33,10 @@ HATSKit Pro is a comprehensive Windows application that simplifies the process o
 - Define processing steps for each component
 - Manage component metadata (name, category, description)
 - Support for multiple source types and asset patterns
+- Manage component extras such as configs, payload resources, BMP files, `.bin` files, and `.dat` files
+- Edit text-like extras directly in the app (`.ini`, `.txt`, `.config`, `.cfg`, `.json`, and similar files)
+- Scan `assets/component_extras/<component_id>/` to auto-register manually added files
+- Edit `assets/skeleton.zip` when legacy fallback content still needs to be changed
 
 ### Pack Manager
 - Download official HATS packs directly from GitHub
@@ -37,12 +47,20 @@ HATSKit Pro is a comprehensive Windows application that simplifies the process o
 - Restore components from trash bin
 - Automatic SD card path detection
 
+### Extra Config
+- Manage sysMMC Nintendo network connectivity from the SD card configuration
+- Block sysMMC Nintendo connectivity using the safer default configuration
+- Allow sysMMC Nintendo connectivity when intentionally needed
+- Update the same core files used by NetMan-style sysMMC network control
+- Focus only on sysMMC connectivity; emuMMC online/offline modes are not managed here
+
 ### Additional Features
 - Built-in GitHub API integration with PAT support
 - Configurable download chunk sizes for optimal performance
 - Dark theme UI powered by ttkbootstrap
 - Comprehensive error handling and user feedback
 - Persistent configuration storage
+- Optional skeleton fallback for legacy pack layouts
 
 ## Installation
 
@@ -136,6 +154,31 @@ python hatskitpro.py
 4. Click `Move to Trash` to safely remove them
 5. Switch to `Trash Bin` view to restore components if needed
 
+### Configuring sysMMC Network Connectivity
+
+The `Extra Config` tab follows the same simplified scope as the NetMan payload: it manages sysMMC Nintendo network connectivity only.
+
+Available modes:
+- **Block Nintendo Connectivity**: safer default for HATS-style setups
+- **Allow Nintendo Connectivity**: allows sysMMC to reach Nintendo services when intentionally selected
+
+When blocking sysMMC, HATSKit Pro applies settings equivalent to NetMan's protected sysMMC mode:
+- enables `blank_prodinfo_sysmmc`
+- keeps `blank_prodinfo_emummc` disabled
+- writes Nintendo blocking rules to `atmosphere/hosts/sysmmc.txt`
+- keeps DNS MITM enabled with default hosts disabled
+- enables sys-patch network patches and firmware update blocking
+
+When allowing sysMMC, HATSKit Pro applies settings equivalent to NetMan's open sysMMC mode:
+- disables `blank_prodinfo_sysmmc`
+- keeps `blank_prodinfo_emummc` disabled
+- clears sysMMC Nintendo host blocking
+- keeps DNS MITM enabled with default hosts disabled
+- keeps sys-patch network patches enabled
+- allows firmware updates
+
+The Extra Config tab no longer manages separate emuMMC online/offline or both-online modes.
+
 ### Editing Components
 
 1. Go to the `Component Editor` tab
@@ -147,6 +190,71 @@ python hatskitpro.py
    - Processing steps for extraction and placement
 4. Click `Save Changes` to update the component definition
 5. Use `Add New` to create new component entries
+
+### Managing Component Extras
+
+Component extras are files that belong to a specific component and should be added to the final pack only when that component is selected.
+
+Examples:
+- Hekate: `bootloader/hekate_ipl.ini`, `bootloader/res/*.bmp`
+- Ultrahand: `config/ultrahand/config.ini`
+- DBI: `switch/DBI/dbi.config`
+- Modchip payload helpers: `boot.dat`, `bootloader/payloads/*.bin`
+
+To add extras from the UI:
+
+1. Go to the `Component Editor` tab
+2. Select a component
+3. Click `Edit Extras`
+4. Click `Add File`
+5. Choose the file to include
+6. Enter the target folder inside the pack
+   - For root files such as `boot.dat`, leave the folder empty or use `/`
+   - For Hekate resources, use `bootloader/res/`
+   - For Ultrahand config, use `config/ultrahand/`
+7. Text-like files can be selected and edited with `Edit`
+8. Binary/resource files can be replaced with `Edit`
+
+To register files copied manually:
+
+1. Copy files into `assets/component_extras/<component_id>/`
+2. Preserve the intended pack path under that folder
+3. Click `Edit Extras`
+4. Click `Scan Folder`
+
+Example:
+
+```text
+assets/component_extras/hekate/bootloader/hekate_ipl.ini
+assets/component_extras/hekate/bootloader/res/ofw.bmp
+assets/component_extras/hekate/bootloader/res/sysnand.bmp
+```
+
+After scanning, those files are registered as:
+
+```text
+bootloader/hekate_ipl.ini
+bootloader/res/ofw.bmp
+bootloader/res/sysnand.bmp
+```
+
+During builds, component extras overwrite existing files at the same target path by default. This makes it safe to migrate files out of `skeleton.zip` gradually.
+
+### Skeleton Fallback
+
+`assets/skeleton.zip` is now optional. It can still be used as a legacy base archive, but component extras are the preferred place for component-owned configuration and resource files.
+
+Build order:
+
+```text
+optional skeleton.zip
++ selected component downloads
++ selected component extras
++ generated manifest and metadata
+= final HATS pack
+```
+
+If `assets/skeleton.zip` is missing, the builder logs that it is continuing without it. This is expected for migrated HATSKit Pro 2.0 setups.
 
 #### Processing Steps Reference
 
@@ -205,6 +313,30 @@ Contains all component definitions including:
 - Download sources
 - Version information
 - Processing instructions
+- Component extras metadata
+
+Component extras example:
+
+```json
+{
+  "component_extras": [
+    {
+      "type": "text",
+      "target": "bootloader/hekate_ipl.ini",
+      "source": "assets/component_extras/hekate/bootloader/hekate_ipl.ini",
+      "enabled": true,
+      "overwrite": true
+    },
+    {
+      "type": "file",
+      "target": "bootloader/res/ofw.bmp",
+      "source": "assets/component_extras/hekate/bootloader/res/ofw.bmp",
+      "enabled": true,
+      "overwrite": true
+    }
+  ]
+}
+```
 
 ### manifest.json
 
@@ -224,10 +356,12 @@ HATSKit-Pro/
 ├── src/
 │   ├── builder.py         # Pack builder module
 │   ├── editor.py          # Component editor module
+│   ├── extra.py           # Extra/system configuration module
 │   └── manager.py         # Pack manager module
 │
 ├── assets/
-│   └── skeleton.zip       # Base pack structure
+│   ├── component_extras/  # Component-owned configs and resources
+│   └── skeleton.zip       # Optional legacy base pack fallback
 │
 ├── image/
 │   └── preview.png        # Application preview image

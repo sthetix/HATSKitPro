@@ -1,7 +1,7 @@
 """
 builder.py - Pack Builder Module
 Handles all Pack Builder tab logic and functionality
-HATSKit Pro v1.3.0
+HATSKit Pro v2.0.0
 """
 
 import ttkbootstrap as ttk
@@ -208,10 +208,6 @@ class PackBuilder:
             api_url = f"https://api.github.com/repos/{self.ATMOSPHERE_REPO}/releases?per_page=3"
             req = urllib.request.Request(api_url)
             req.add_header('Accept', 'application/vnd.github.v3+json')
-
-            pat = self.gui.github_pat.get()
-            if pat:
-                req.add_header('Authorization', f'token {pat}')
 
             if log:
                 log(f"  Fetching Atmosphere release info to determine supported firmware...")
@@ -658,10 +654,6 @@ class PackBuilder:
             try:
                 req = urllib.request.Request(api_url)
                 req.add_header('Accept', 'application/vnd.github.v3+json')
-                pat = self.gui.github_pat.get()
-                if pat:
-                    req.add_header('Authorization', f'token {pat}')
-
                 with urllib.request.urlopen(req, timeout=10) as response:
                     if response.status == 200:
                         releases = json.loads(response.read().decode())
@@ -781,10 +773,11 @@ class PackBuilder:
             staging_dir.mkdir()
             log(f"Created temporary staging area: {staging_dir}")
 
-            # --- New Logic: Always extract local skeleton.zip first ---
+            # Optional legacy base pack. Component extras are now the preferred source for
+            # component-owned config/resource files.
             skeleton_path = Path("assets/skeleton.zip")
             if skeleton_path.exists():
-                log("▶ Processing base skeleton...")
+                log("▶ Processing optional base skeleton...")
                 try:
                     with zipfile.ZipFile(skeleton_path, 'r') as zip_ref:
                         zip_ref.extractall(staging_dir)
@@ -792,7 +785,8 @@ class PackBuilder:
                 except Exception as e:
                     log(f"  ❌ FAILED to extract skeleton.zip: {e}")
             else:
-                log("⚠️ WARNING: assets/skeleton.zip not found. Pack may be incomplete.")
+                log("ℹ️ assets/skeleton.zip not found. Continuing without it.")
+                log("  Component extras will provide migrated config/resource files.")
 
             for comp_id in selected_ids:
                 comp_data = self.gui.components_data.get(comp_id)
@@ -858,6 +852,13 @@ class PackBuilder:
                     log(f"  ❌ Component '{comp_data['name']}' failed. Halting build.")
                     any_component_failed = True
                     break # Exit the main component loop
+
+                extra_files = self._apply_component_extras(comp_id, comp_data, staging_dir, log)
+                if extra_files is None:
+                    log(f"  ❌ Component extras for '{comp_data['name']}' failed. Halting build.")
+                    any_component_failed = True
+                    break
+                all_component_files.extend(extra_files)
 
                 # Add to manifest
                 manifest['components'][comp_id] = {
@@ -1068,6 +1069,60 @@ class PackBuilder:
 
         return []
 
+    def _apply_component_extras(self, comp_id, comp_data, staging_dir, log):
+        """Copy component-owned extras into the staging directory."""
+        extras = comp_data.get('component_extras', [])
+        if not extras:
+            return []
+
+        log(f"  → Applying {len(extras)} component extra(s)...")
+        processed_files = []
+
+        for extra in extras:
+            if not extra.get('enabled', True):
+                continue
+
+            target = extra.get('target', '').replace('\\', '/').lstrip('/')
+            source = extra.get('source', '')
+            required = extra.get('required', False)
+            overwrite = extra.get('overwrite', True)
+
+            if not target or target == '..' or target.startswith('../') or '/..' in target:
+                log(f"    ❌ Invalid extra target path: {target}")
+                if required:
+                    return None
+                continue
+
+            if not source:
+                log(f"    ❌ Extra for '{target}' is missing source.")
+                if required:
+                    return None
+                continue
+
+            source_path = Path(source)
+            if not source_path.exists():
+                log(f"    ❌ Extra source not found: {source}")
+                if required:
+                    return None
+                continue
+
+            target_path = staging_dir / target
+            if target_path.exists() and not overwrite:
+                log(f"    → Skipped existing extra: {target}")
+                continue
+
+            try:
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_path, target_path)
+                processed_files.append(target_path)
+                log(f"    ✅ Extra added: {target}")
+            except Exception as e:
+                log(f"    ❌ Failed to add extra '{target}': {e}")
+                if required:
+                    return None
+
+        return processed_files
+
     def _download_asset(self, comp_data, temp_dir, log, pattern=None, version=None):
         """
         Downloads the asset for a component with progress tracking and timeout.
@@ -1098,9 +1153,7 @@ class PackBuilder:
                 log(f"  Fetching latest release info...")
 
             req = urllib.request.Request(api_url)
-            pat = self.gui.github_pat.get()
-            if pat:
-                req.add_header('Authorization', f'token {pat}')
+            req.add_header('Accept', 'application/vnd.github.v3+json')
 
             try:
                 with urllib.request.urlopen(req, timeout=15) as response:

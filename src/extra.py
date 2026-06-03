@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Post-Processor Module for HATSKit Pro v1.3.0
+Post-Processor Module for HATSKit Pro v2.0.0
 Handles post-extraction configuration of exosphere.ini and hosts files
 Based on HATSIFY's main.c functionality
 """
@@ -10,13 +10,13 @@ from pathlib import Path
 from tkinter import messagebox
 
 # Configuration file templates
-EXOSPHERE_OFFLINE = """[exosphere]
+EXOSPHERE_SYSMMC_BLOCKED = """[exosphere]
 debugmode=1
 debugmode_user=0
 disable_user_exception_handlers=0
 enable_user_pmu_access=0
 blank_prodinfo_sysmmc=1
-blank_prodinfo_emummc=1
+blank_prodinfo_emummc=0
 allow_writing_to_cal_sysmmc=0
 log_port=0
 log_baud_rate=115200
@@ -29,12 +29,14 @@ debugmode_user=0
 disable_user_exception_handlers=0
 enable_user_pmu_access=0
 blank_prodinfo_sysmmc=0
-blank_prodinfo_emummc=1
+blank_prodinfo_emummc=0
 allow_writing_to_cal_sysmmc=0
 log_port=0
 log_baud_rate=115200
 log_inverted=0
 """
+
+EXOSPHERE_OFFLINE = EXOSPHERE_SYSMMC_BLOCKED
 
 EXOSPHERE_EMUMMC_ONLINE = """[exosphere]
 debugmode=1
@@ -108,6 +110,53 @@ HOSTS_BLOCK_ALL = """# Nintendo Servers
 HOSTS_OPEN = """# No Nintendo server blocks
 """
 
+SYS_SETTINGS_MITM_ON_DEFAULTS_OFF = """[atmosphere]
+enable_dns_mitm = u8!0x1
+add_defaults_to_dns_hosts = u8!0x0
+"""
+
+SYS_PATCH_NETWORK_UPDATES_BLOCKED = """[options]
+patch_sysmmc=1
+patch_emummc=1
+enable_logging=1
+version_skip=1
+[olsc]
+olsc_6.0.0-14.1.2=1
+olsc_15.0.0-18.1.0=1
+olsc_19.0.0+=1
+[nifm]
+ctest_1.0.0-19.0.1=1
+ctest_20.0.0+=1
+[nim]
+blankcal0crashfix_17.0.0+=1
+blockfirmwareupdates_1.0.0-5.1.0=1
+blockfirmwareupdates_6.0.0-6.2.0=1
+blockfirmwareupdates_7.0.0-10.2.0=1
+blockfirmwareupdates_11.0.0-11.0.1=1
+blockfirmwareupdates_12.0.0+=1
+"""
+
+SYS_PATCH_NETWORK_UPDATES_ALLOWED = """[options]
+patch_sysmmc=1
+patch_emummc=1
+enable_logging=1
+version_skip=1
+[olsc]
+olsc_6.0.0-14.1.2=1
+olsc_15.0.0-18.1.0=1
+olsc_19.0.0+=1
+[nifm]
+ctest_1.0.0-19.0.1=1
+ctest_20.0.0+=1
+[nim]
+blankcal0crashfix_17.0.0+=1
+blockfirmwareupdates_1.0.0-5.1.0=0
+blockfirmwareupdates_6.0.0-6.2.0=0
+blockfirmwareupdates_7.0.0-10.2.0=0
+blockfirmwareupdates_11.0.0-11.0.1=0
+blockfirmwareupdates_12.0.0+=0
+"""
+
 
 class PostProcessor:
     """Handles post-extraction configuration of Switch CFW files"""
@@ -124,6 +173,7 @@ class PostProcessor:
             'hosts_sysmmc': sd_path / 'atmosphere' / 'hosts' / 'sysmmc.txt',
             'hosts_emummc': sd_path / 'atmosphere' / 'hosts' / 'emummc.txt',
             'sys_settings': sd_path / 'atmosphere' / 'config' / 'system_settings.ini',
+            'sys_patch_config': sd_path / 'config' / 'sys-patch' / 'config.ini',
             'hekate_ipl': sd_path / 'bootloader' / 'hekate_ipl.ini'
         }
 
@@ -153,28 +203,12 @@ class PostProcessor:
         if not paths['exosphere'].exists():
             return None
 
-        sys_online = False
-        emu_online = False
-
         # Check sysmmc.txt
         sysmmc_content = self.read_file(paths['hosts_sysmmc'])
         if sysmmc_content and "# No Nintendo server blocks" in sysmmc_content:
-            sys_online = True
-
-        # Check emummc.txt
-        emummc_content = self.read_file(paths['hosts_emummc'])
-        if emummc_content and "# No Nintendo server blocks" in emummc_content:
-            emu_online = True
-
-        # Determine mode
-        if sys_online and emu_online:
-            return 'both_online'
-        elif sys_online:
             return 'sysmmc_online'
-        elif emu_online:
-            return 'emummc_online'
-        else:
-            return 'default'
+
+        return 'default'
 
     def detect_hekate_config(self, sd_path):
         """Detect current Hekate boot menu configuration"""
@@ -346,22 +380,23 @@ class PostProcessor:
         return all_success
 
     def _apply_default_network(self, paths, results):
-        """Apply default network configuration (both offline)"""
+        """Apply default network configuration (sysMMC blocked)"""
         success = True
-        if self.write_file(paths['exosphere'], EXOSPHERE_OFFLINE):
-            results.append("✓ Network: Both offline (default)")
+        if self.write_file(paths['exosphere'], EXOSPHERE_SYSMMC_BLOCKED):
+            results.append("✓ Network: sysMMC blocked (default)")
         else:
             results.append("✗ Network: Failed to write exosphere.ini")
             success = False
 
-        for host_file, name in [(paths['hosts_default'], 'default.txt'),
-                                (paths['hosts_sysmmc'], 'sysmmc.txt'),
-                                (paths['hosts_emummc'], 'emummc.txt')]:
-            if not self.write_file(host_file, HOSTS_BLOCK_ALL):
-                success = False
+        if not self.write_file(paths['hosts_sysmmc'], HOSTS_BLOCK_ALL):
+            success = False
+        if not self.write_file(paths['hosts_default'], HOSTS_OPEN):
+            success = False
 
-        if paths['sys_settings'].exists():
-            self.update_dns_mitm_settings(paths['sys_settings'], True)
+        if not self.write_file(paths['sys_settings'], SYS_SETTINGS_MITM_ON_DEFAULTS_OFF):
+            success = False
+        if not self.write_file(paths['sys_patch_config'], SYS_PATCH_NETWORK_UPDATES_BLOCKED):
+            success = False
 
         return success
 
@@ -376,13 +411,13 @@ class PostProcessor:
 
         if not self.write_file(paths['hosts_sysmmc'], HOSTS_OPEN):
             success = False
-        if not self.write_file(paths['hosts_emummc'], HOSTS_BLOCK_ALL):
-            success = False
-        if not self.write_file(paths['hosts_default'], HOSTS_BLOCK_ALL):
+        if not self.write_file(paths['hosts_default'], HOSTS_OPEN):
             success = False
 
-        if paths['sys_settings'].exists():
-            self.update_dns_mitm_settings(paths['sys_settings'], False)
+        if not self.write_file(paths['sys_settings'], SYS_SETTINGS_MITM_ON_DEFAULTS_OFF):
+            success = False
+        if not self.write_file(paths['sys_patch_config'], SYS_PATCH_NETWORK_UPDATES_ALLOWED):
+            success = False
 
         return success
 
@@ -456,7 +491,7 @@ class PostProcessor:
         return self.write_file(sys_settings_path, content)
 
     def set_default_config(self, sd_path):
-        """Set default configuration: Both offline (safest mode)"""
+        """Set default configuration: sysMMC blocked"""
         if not sd_path:
             self.gui.show_custom_info("Error", "Please set SD card path first", width=400, height=180)
             return
@@ -465,14 +500,13 @@ class PostProcessor:
         results = []
 
         # Write exosphere.ini
-        if self.write_file(paths['exosphere'], EXOSPHERE_OFFLINE):
-            results.append("✓ exosphere.ini: Both offline")
+        if self.write_file(paths['exosphere'], EXOSPHERE_SYSMMC_BLOCKED):
+            results.append("✓ exosphere.ini: sysMMC blocked")
         else:
             results.append("✗ exosphere.ini: Failed")
 
-        # Write all hosts files to block
-        if self.write_file(paths['hosts_default'], HOSTS_BLOCK_ALL):
-            results.append("✓ default.txt: Blocked")
+        if self.write_file(paths['hosts_default'], HOSTS_OPEN):
+            results.append("✓ default.txt: Open")
         else:
             results.append("✗ default.txt: Failed")
 
@@ -481,28 +515,26 @@ class PostProcessor:
         else:
             results.append("✗ sysmmc.txt: Failed")
 
-        if self.write_file(paths['hosts_emummc'], HOSTS_BLOCK_ALL):
-            results.append("✓ emummc.txt: Blocked")
+        if self.write_file(paths['sys_settings'], SYS_SETTINGS_MITM_ON_DEFAULTS_OFF):
+            results.append("✓ DNS MITM: Enabled, defaults off")
         else:
-            results.append("✗ emummc.txt: Failed")
+            results.append("✗ DNS MITM: Failed")
 
-        # Enable DNS MITM
-        if paths['sys_settings'].exists():
-            if self.update_dns_mitm_settings(paths['sys_settings'], True):
-                results.append("✓ DNS MITM: Enabled")
-            else:
-                results.append("✗ DNS MITM: Failed")
+        if self.write_file(paths['sys_patch_config'], SYS_PATCH_NETWORK_UPDATES_BLOCKED):
+            results.append("✓ sys-patch: Network patches on, updates blocked")
+        else:
+            results.append("✗ sys-patch: Failed")
 
         result_text = "\n".join(results)
         self.gui.show_custom_info(
             "Default Configuration Applied",
-            f"Both sysMMC CFW and emuMMC are now offline.\n\n{result_text}",
+            f"sysMMC Nintendo connectivity is now blocked.\n\n{result_text}",
             width=500,
             height=350
         )
 
     def set_sysmmc_online(self, sd_path):
-        """Set sysMMC CFW online, emuMMC offline"""
+        """Set sysMMC CFW online"""
         if not sd_path:
             self.gui.show_custom_info("Error", "Please set SD card path first", width=400, height=180)
             return
@@ -513,7 +545,7 @@ class PostProcessor:
             "This mode allows sysMMC CFW to connect to Nintendo online services.\n\n"
             "• Your REAL console identity will be visible to Nintendo\n"
             "• If detected with illegal content, your console may be banned\n"
-            "• emuMMC will remain safely offline\n\n"
+            "• This only changes sysMMC network blocking settings\n\n"
             "Proceed at your own risk!",
             yes_text="Proceed",
             no_text="Cancel",
@@ -540,28 +572,25 @@ class PostProcessor:
         else:
             results.append("✗ sysmmc.txt: Failed")
 
-        # emuMMC and default hosts blocked
-        if self.write_file(paths['hosts_emummc'], HOSTS_BLOCK_ALL):
-            results.append("✓ emummc.txt: Blocked")
-        else:
-            results.append("✗ emummc.txt: Failed")
-
-        if self.write_file(paths['hosts_default'], HOSTS_BLOCK_ALL):
-            results.append("✓ default.txt: Blocked")
+        if self.write_file(paths['hosts_default'], HOSTS_OPEN):
+            results.append("✓ default.txt: Open")
         else:
             results.append("✗ default.txt: Failed")
 
-        # Disable DNS MITM
-        if paths['sys_settings'].exists():
-            if self.update_dns_mitm_settings(paths['sys_settings'], False):
-                results.append("✓ DNS MITM: Disabled")
-            else:
-                results.append("✗ DNS MITM: Failed")
+        if self.write_file(paths['sys_settings'], SYS_SETTINGS_MITM_ON_DEFAULTS_OFF):
+            results.append("✓ DNS MITM: Enabled, defaults off")
+        else:
+            results.append("✗ DNS MITM: Failed")
+
+        if self.write_file(paths['sys_patch_config'], SYS_PATCH_NETWORK_UPDATES_ALLOWED):
+            results.append("✓ sys-patch: Network patches on, updates allowed")
+        else:
+            results.append("✗ sys-patch: Failed")
 
         result_text = "\n".join(results)
         self.gui.show_custom_info(
             "sysMMC Online Configuration Applied",
-            f"sysMMC CFW can now connect to Nintendo.\nemuMMC remains protected.\n\n{result_text}",
+            f"sysMMC CFW can now connect to Nintendo.\n\n{result_text}",
             width=500,
             height=350
         )

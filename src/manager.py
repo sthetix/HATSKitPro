@@ -1,7 +1,7 @@
 """
 manager.py - Manager Module
 Handles all Manager tab logic and functionality (HATS-Off)
-HATSKit Pro v1.3.0
+HATSKit Pro v2.0.0
 """
 
 import ttkbootstrap as ttk
@@ -548,10 +548,9 @@ class PackManager:
         """Check GitHub for the latest release"""
         def fetch_release():
             try:
-                headers = {}
-                # Use GitHub PAT if available
-                if self.gui.github_pat.get():
-                    headers['Authorization'] = f'token {self.gui.github_pat.get()}'
+                headers = {
+                    'Accept': 'application/vnd.github+json',
+                }
 
                 response = requests.get(self.GITHUB_API_URL, headers=headers, timeout=10)
                 response.raise_for_status()
@@ -656,13 +655,8 @@ class PackManager:
                 # Get chunk size from config (default 2MB)
                 chunk_size = self.gui.config_data.get('download_chunk_size', 2 * 1024 * 1024)
 
-                headers = {}
-                if self.gui.github_pat.get():
-                    headers['Authorization'] = f'token {self.gui.github_pat.get()}'
-
                 response = requests.get(
                     self.latest_release_info['download_url'],
-                    headers=headers,
                     stream=True,
                     timeout=30
                 )
@@ -733,10 +727,9 @@ class PackManager:
         """Check GitHub for the latest firmware release"""
         def fetch_firmware():
             try:
-                headers = {}
-                # Use GitHub PAT if available
-                if self.gui.github_pat.get():
-                    headers['Authorization'] = f'token {self.gui.github_pat.get()}'
+                headers = {
+                    'Accept': 'application/vnd.github+json',
+                }
 
                 response = requests.get(self.FIRMWARE_API_URL, headers=headers, timeout=10)
                 response.raise_for_status()
@@ -823,13 +816,8 @@ class PackManager:
                 # Get chunk size from config (default 2MB)
                 chunk_size = self.gui.config_data.get('download_chunk_size', 2 * 1024 * 1024)
 
-                headers = {}
-                if self.gui.github_pat.get():
-                    headers['Authorization'] = f'token {self.gui.github_pat.get()}'
-
                 response = requests.get(
                     self.latest_firmware_info['download_url'],
-                    headers=headers,
                     stream=True,
                     timeout=30
                 )

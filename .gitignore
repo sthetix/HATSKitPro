@@ -32,6 +32,7 @@ archive/
 *.7z
 *-backup*
 *backup*.zip
+assets/skeleton*.zip
 
 # IDE and editor files
 .vscode/

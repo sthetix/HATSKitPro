@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v1.3.0 - Main GUI Skeleton
+HATSKit Pro v2.0.0 - Main GUI
 A unified tool for building and managing HATS packs
 """
 
@@ -12,6 +12,7 @@ from ttkbootstrap.constants import *
 from tkinter import messagebox
 import json
 import os
+import sys
 
 # Import our modules
 from src.builder import PackBuilder
@@ -19,11 +20,34 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "1.3.0"
+VERSION = "2.0.0"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
 PRESETS_FILE = 'presets.json'
+
+
+def set_windows_app_id():
+    """Set Windows AppUserModelID so the taskbar groups the app correctly."""
+    if sys.platform != 'win32':
+        return
+    try:
+        import ctypes
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("HATSKitPro.HATSKitPro.1.0")
+    except Exception:
+        pass
+
+
+def set_window_icon(root):
+    """Set the Tk window/taskbar icon when running from source or a launcher."""
+    icon_path = os.path.join(os.path.dirname(__file__), "icon", "icon.ico")
+    if not os.path.exists(icon_path):
+        return
+    try:
+        root.iconbitmap(icon_path)
+        root.wm_iconbitmap(icon_path)
+    except Exception:
+        pass
 
 # Dummy data as fallback
 DUMMY_COMPONENTS = {
@@ -66,7 +90,8 @@ class HATSKitProGUI:
     def __init__(self, root):
         self.root = root
         self.root.title(f"HATSKit Pro v{VERSION}")
-        self.root.geometry("1100x1200")
+        self.root.geometry("1200x1280")
+        self.root.minsize(1200, 980)
         self.root.resizable(True, True)
 
         # Note: Debug event handlers removed - they were interfering with
@@ -197,6 +222,8 @@ class HATSKitProGUI:
         menubar.add_cascade(label="Settings", menu=settings_menu)
         settings_menu.add_command(label="GitHub PAT", command=self.show_pat_settings)
         settings_menu.add_command(label="Download Settings", command=self.show_download_settings)
+        settings_menu.add_separator()
+        settings_menu.add_command(label="Edit Legacy Skeleton", command=self.open_legacy_skeleton_editor)
         
         # Help menu
         help_menu = ttk.Menu(menubar, tearoff=0)
@@ -216,6 +243,11 @@ class HATSKitProGUI:
         self.refresh_preset_controls()
         if show_info:
             self.show_custom_info("Reloaded", f"Loaded {len(self.components_data)} components")
+
+    def open_legacy_skeleton_editor(self):
+        """Open the optional legacy skeleton editor from the Settings menu."""
+        if hasattr(self, 'editor'):
+            self.editor.open_skeleton_editor()
         
     def prepare_for_install(self, pack_path):
         """Prepares the Manager tab for installation after a successful build."""
@@ -651,6 +683,15 @@ class HATSKitProGUI:
         ttk.Button(add_step_frame, text="Edit Step", bootstyle="info-outline", command=lambda: None).pack(side=LEFT, padx=2)
         ttk.Button(add_step_frame, text="Remove Step", bootstyle="danger-outline", command=lambda: None).pack(side=LEFT, padx=2)
 
+        # Component-owned extras
+        ttk.Separator(form, orient=HORIZONTAL).grid(row=13, column=0, columnspan=2, sticky=EW, pady=10)
+        extras_frame = ttk.Frame(form)
+        extras_frame.grid(row=14, column=0, columnspan=2, sticky=EW, pady=5)
+        ttk.Label(extras_frame, text="Component Extras", font=('Segoe UI', 10, 'bold')).pack(side=LEFT)
+        self.editor_extras_info = ttk.Label(extras_frame, text="0 extras", font=('Segoe UI', 9), foreground='gray')
+        self.editor_extras_info.pack(side=LEFT, padx=(10, 0))
+        ttk.Button(extras_frame, text="Edit Extras", bootstyle="warning-outline", command=lambda: None).pack(side=RIGHT)
+
         form.columnconfigure(1, weight=1)
     
     def create_manager_tab_ui(self):
@@ -817,7 +858,7 @@ class HATSKitProGUI:
 
         ttk.Label(info_frame,
                   text="Configure critical system settings for your SD card. Settings are auto-detected when you select an SD card.\n"
-                       "Adjust network modes, Hekate boot menu options, and USB 3.0 settings, then click 'Save All Settings' to apply.",
+                       "Adjust sysMMC network blocking, Hekate boot menu options, and USB 3.0 settings, then click 'Save All Settings' to apply.",
                   font=('Segoe UI', 9)).pack()
 
         # SD Card path selection - Smart status display
@@ -842,26 +883,26 @@ class HATSKitProGUI:
         config_container.grid_columnconfigure(0, weight=3)  # Left column takes 60% width
         config_container.grid_columnconfigure(1, weight=2)  # Right column takes 40% width
 
-        # LEFT COLUMN: Network Modes
-        left_column = ttk.Labelframe(config_container, text="Network Modes", padding="15")
+        # LEFT COLUMN: sysMMC Network
+        left_column = ttk.Labelframe(config_container, text="sysMMC Network", padding="15")
         left_column.grid(row=0, column=0, sticky="nsew", padx=(0, 5))
 
         # Network mode radio buttons
         self.network_mode_var = ttk.StringVar(value='default')
 
-        # Mode 1: Default (Both Offline) - Safe
-        self.mode1_frame = ttk.Labelframe(left_column, text="Default Mode (Safest)", padding="10", bootstyle="secondary")
+        # Mode 1: Default sysMMC blocked
+        self.mode1_frame = ttk.Labelframe(left_column, text="Default Mode", padding="10", bootstyle="secondary")
         self.mode1_frame.pack(fill=X, pady=5)
 
         self.network_radio_default = ttk.Radiobutton(self.mode1_frame,
-                                                     text="Both sysMMC CFW and emuMMC offline",
+                                                     text="Block sysMMC Nintendo connectivity",
                                                      variable=self.network_mode_var,
                                                      value='default',
                                                      bootstyle="success",
                                                      state=DISABLED)
         self.network_radio_default.pack(anchor=W)
         self.mode1_label = ttk.Label(self.mode1_frame,
-                                     text="• All Nintendo connections blocked\n• Safest option to prevent bans\n• Recommended for most users",
+                                     text="• Blocks Nintendo hosts for sysMMC\n• Blanks sysMMC PRODINFO\n• Enables sys-patch firmware update blocking",
                                      font=('Segoe UI', 9),
                                      bootstyle="secondary")
         self.mode1_label.pack(anchor=W, padx=(20, 0))
@@ -871,51 +912,17 @@ class HATSKitProGUI:
         self.mode2_frame.pack(fill=X, pady=5)
 
         self.network_radio_sysmmc = ttk.Radiobutton(self.mode2_frame,
-                                                    text="sysMMC CFW online, emuMMC offline",
+                                                    text="Allow sysMMC Nintendo connectivity",
                                                     variable=self.network_mode_var,
                                                     value='sysmmc_online',
                                                     bootstyle="warning",
                                                     state=DISABLED)
         self.network_radio_sysmmc.pack(anchor=W)
         self.mode2_label = ttk.Label(self.mode2_frame,
-                                     text="• sysMMC can connect to Nintendo\n• Risk of ban if detected\n• For playing legitimate games online",
+                                     text="• Opens sysMMC Nintendo hosts\n• Disables sysMMC PRODINFO blanking\n• Keeps sys-patch network patches on, updates allowed",
                                      font=('Segoe UI', 9),
                                      bootstyle="secondary")
         self.mode2_label.pack(anchor=W, padx=(20, 0))
-
-        # Mode 3: emuMMC Online
-        self.mode3_frame = ttk.Labelframe(left_column, text="emuMMC Online", padding="10", bootstyle="secondary")
-        self.mode3_frame.pack(fill=X, pady=5)
-
-        self.network_radio_emummc = ttk.Radiobutton(self.mode3_frame,
-                                                    text="emuMMC online, sysMMC CFW offline",
-                                                    variable=self.network_mode_var,
-                                                    value='emummc_online',
-                                                    bootstyle="warning",
-                                                    state=DISABLED)
-        self.network_radio_emummc.pack(anchor=W)
-        self.mode3_label = ttk.Label(self.mode3_frame,
-                                     text="• emuMMC can connect to Nintendo\n• Still risk of console ban\n• For advanced users who accept the risk",
-                                     font=('Segoe UI', 9),
-                                     bootstyle="secondary")
-        self.mode3_label.pack(anchor=W, padx=(20, 0))
-
-        # Mode 4: Both Online - Dangerous
-        self.mode4_frame = ttk.Labelframe(left_column, text="Both Online (Maximum Risk)", padding="10", bootstyle="secondary")
-        self.mode4_frame.pack(fill=X, pady=5)
-
-        self.network_radio_both = ttk.Radiobutton(self.mode4_frame,
-                                                  text="Both sysMMC CFW and emuMMC online",
-                                                  variable=self.network_mode_var,
-                                                  value='both_online',
-                                                  bootstyle="danger",
-                                                  state=DISABLED)
-        self.network_radio_both.pack(anchor=W)
-        self.mode4_label = ttk.Label(self.mode4_frame,
-                                     text="• No protection active, highly dangerous\n• Maximum ban risk\n• Console identifiers are fully exposed",
-                                     font=('Segoe UI', 9),
-                                     bootstyle="secondary")
-        self.mode4_label.pack(anchor=W, padx=(20, 0))
 
         # RIGHT COLUMN: Hekate Boot Config + USB 3.0
         right_column = ttk.Frame(config_container)
@@ -1085,8 +1092,6 @@ class HATSKitProGUI:
         # Enable all controls now that we have settings
         self.network_radio_default.config(state=NORMAL)
         self.network_radio_sysmmc.config(state=NORMAL)
-        self.network_radio_emummc.config(state=NORMAL)
-        self.network_radio_both.config(state=NORMAL)
 
         # Update network mode frame styles
         self.mode1_frame.config(bootstyle="success")
@@ -1095,15 +1100,11 @@ class HATSKitProGUI:
         self.mode2_frame.config(bootstyle="warning")
         self.mode2_label.config(bootstyle="warning")
 
-        self.mode3_frame.config(bootstyle="warning")
-        self.mode3_label.config(bootstyle="warning")
-
-        self.mode4_frame.config(bootstyle="danger")
-        self.mode4_label.config(bootstyle="danger")
-
         # Update Network Mode
-        if settings['network_mode']:
+        if settings['network_mode'] in ('default', 'sysmmc_online'):
             self.network_mode_var.set(settings['network_mode'])
+        else:
+            self.network_mode_var.set('default')
 
         # Update Hekate Config
         if settings['hekate_config']:
@@ -1167,8 +1168,6 @@ class HATSKitProGUI:
         # Enable all controls now that we have settings
         self.network_radio_default.config(state=NORMAL)
         self.network_radio_sysmmc.config(state=NORMAL)
-        self.network_radio_emummc.config(state=NORMAL)
-        self.network_radio_both.config(state=NORMAL)
 
         # Update network mode frame styles
         self.mode1_frame.config(bootstyle="success")
@@ -1177,15 +1176,11 @@ class HATSKitProGUI:
         self.mode2_frame.config(bootstyle="warning")
         self.mode2_label.config(bootstyle="warning")
 
-        self.mode3_frame.config(bootstyle="warning")
-        self.mode3_label.config(bootstyle="warning")
-
-        self.mode4_frame.config(bootstyle="danger")
-        self.mode4_label.config(bootstyle="danger")
-
         # Update Network Mode
-        if settings['network_mode']:
+        if settings['network_mode'] in ('default', 'sysmmc_online'):
             self.network_mode_var.set(settings['network_mode'])
+        else:
+            self.network_mode_var.set('default')
 
         # Update Hekate Config
         if settings['hekate_config']:
@@ -1215,10 +1210,8 @@ class HATSKitProGUI:
 
         # Show success message
         network_names = {
-            'default': 'Both Offline (Default)',
-            'sysmmc_online': 'sysMMC Online',
-            'emummc_online': 'emuMMC Online',
-            'both_online': 'Both Online'
+            'default': 'sysMMC Blocked',
+            'sysmmc_online': 'sysMMC Online'
         }
         network_desc = network_names.get(settings['network_mode'], 'Unknown')
         usb_status = "Enabled" if settings['usb30_enabled'] else "Disabled"
@@ -1261,17 +1254,13 @@ class HATSKitProGUI:
         enable_emummc = self.hekate_emummc_var.get()
         enable_usb30 = self.usb30_var.get()
 
-        # Show warning for risky network modes
-        if network_mode in ['sysmmc_online', 'emummc_online', 'both_online']:
-            warnings = {
-                'sysmmc_online': "sysMMC CFW will be able to connect to Nintendo.\nYour console may be banned if detected.",
-                'emummc_online': "emuMMC will be able to connect to Nintendo.\nYour console may still be banned.",
-                'both_online': "Both sysMMC CFW and emuMMC will be online.\nMAXIMUM BAN RISK - extremely dangerous!"
-            }
-
+        # Show warning for risky network mode
+        if network_mode == 'sysmmc_online':
             confirm = self.show_custom_confirm(
                 "⚠ WARNING - Ban Risk",
-                f"{warnings[network_mode]}\n\nAre you sure you want to continue?",
+                "sysMMC CFW will be able to connect to Nintendo.\n"
+                "Your console may be banned if detected.\n\n"
+                "Are you sure you want to continue?",
                 yes_text="Yes, Apply Settings",
                 no_text="Cancel",
                 style="danger",
@@ -1524,7 +1513,9 @@ class HATSKitProGUI:
 
 
 def main():
+    set_windows_app_id()
     root = ttk.Window(themename="darkly")
+    set_window_icon(root)
     app = HATSKitProGUI(root)
     root.mainloop()
 

@@ -1,14 +1,15 @@
 {
   "90dns_tester": {
     "asset_info": {
-      "version": "1.0.4"
+      "version": "v1.1.0"
     },
     "asset_patterns": [
       {
-        "pattern": "Switch_90DNS_tester-*.zip",
+        "pattern": "Switch_90DNS_tester.nro",
         "processing_steps": [
           {
-            "action": "unzip_to_root"
+            "action": "copy_file_to_auto_folder",
+            "target_path": "switch/"
           }
         ]
       }
@@ -16,16 +17,16 @@
     "category": "Homebrew Apps",
     "description": "Tests if 90DNS is configured correctly.",
     "name": "Switch 90DNS Tester",
-    "repo": "sthetix/Switch_90DNS_tester",
+    "repo": "meganukebmp/Switch_90DNS_tester",
     "source_type": "github_release"
   },
-  "CyberFoil": {
+  "Cyberfoil": {
     "asset_info": {
-      "version": "1.4.1"
+      "version": "1.4.5"
     },
     "asset_patterns": [
       {
-        "pattern": "CyberFoil.zip",
+        "pattern": "cyberfoil.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -34,14 +35,99 @@
       }
     ],
     "category": "Homebrew Apps",
-    "description": "A NSP, NSZ, XCI, XCZ & basic eShop Installer for Nintendo Switch",
-    "name": "CyberFoil",
+    "description": "A NSP, NSZ, XCI, XCZ Installer",
+    "name": "Cyberfoil",
     "repo": "luketanti/CyberFoil",
+    "source_type": "github_release"
+  },
+  "DBI_EN": {
+    "asset_info": {
+      "version": "895"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "DBI.nro",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "switch/DBI"
+          }
+        ]
+      },
+      {
+        "pattern": "translation_engb.bin",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "switch/DBI"
+          },
+          {
+            "action": "find_and_rename",
+            "source_file_pattern": "translation_engb.bin",
+            "target_filename": "translation.bin",
+            "target_path": "switch/DBI"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "component_extras": [
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/DBI_EN/switch/DBI/dbi.config",
+        "target": "switch/DBI/dbi.config",
+        "type": "text"
+      }
+    ],
+    "description": "DBI English (Unofficial)",
+    "name": "DBI English (Unofficial)",
+    "repo": "rashevskyv/DBIPatcher",
+    "source_type": "github_release"
+  },
+  "Daybreak": {
+    "asset_info": {
+      "version": "1.0.0"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "daybreak-*.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "description": "A modified and safer Daybreak to update firmware version.",
+    "name": "Daybreak",
+    "repo": "sthetix/daybreak",
+    "source_type": "github_release"
+  },
+  "Disable_remap_dialog": {
+    "asset_info": {
+      "version": "v1.0.12"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "disable_remap_dialog.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_to_root"
+          }
+        ]
+      }
+    ],
+    "category": "Patches",
+    "description": "Nintendo Switch exefs patches for qlaunch to remove the annoying dialog that appears when controller button remapping is active",
+    "name": "Disable remap dialog",
+    "repo": "ndeadly/disable_remap_dialog",
     "source_type": "github_release"
   },
   "DowngradeFixer": {
     "asset_info": {
-      "version": "1.0.0"
+      "version": "1.0.1"
     },
     "asset_patterns": [
       {
@@ -59,9 +145,30 @@
     "repo": "sthetix/DowngradeFixer",
     "source_type": "github_release"
   },
+  "FPSLocker": {
+    "asset_info": {
+      "version": "3.3.2"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "FPSLocker.ovl",
+        "processing_steps": [
+          {
+            "action": "copy_file",
+            "target_path": "/switch/.overlays/"
+          }
+        ]
+      }
+    ],
+    "category": "Tesla Overlays",
+    "description": "Set custom FPS in Nintendo Switch games",
+    "name": "FPSLocker",
+    "repo": "masagrator/FPSLocker",
+    "source_type": "github_release"
+  },
   "FuseCheck": {
     "asset_info": {
-      "version": "v1.0.1"
+      "version": "1.0.3"
     },
     "asset_patterns": [
       {
@@ -102,7 +209,7 @@
   },
   "HATS-Tools": {
     "asset_info": {
-      "version": "1.5.4"
+      "version": "1.6.2"
     },
     "asset_patterns": [
       {
@@ -122,7 +229,7 @@
   },
   "Lockpick_RCM_Pro": {
     "asset_info": {
-      "version": "1.10.0"
+      "version": "2.0.2"
     },
     "asset_patterns": [
       {
@@ -142,11 +249,11 @@
   },
   "NetMan": {
     "asset_info": {
-      "version": "1.0.0"
+      "version": "2.0.0"
     },
     "asset_patterns": [
       {
-        "pattern": "NetMan.zip",
+        "pattern": "NetMan*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -162,7 +269,7 @@
   },
   "NxThemeInstaller": {
     "asset_info": {
-      "version": "v4.8.3"
+      "version": "nxt-2.9"
     },
     "asset_patterns": [
       {
@@ -181,24 +288,28 @@
     "repo": "exelix11/SwitchThemeInjector",
     "source_type": "github_release"
   },
-  "Sigpatches": {
+  "SaltyNX": {
     "asset_info": {
-      "version": "1.9.8"
+      "version": "1.8.1"
     },
     "asset_patterns": [
       {
-        "pattern": "SystemEnhancer*.zip",
+        "pattern": "SaltyNX*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
+          },
+          {
+            "action": "delete_file",
+            "path": "/atmosphere/contents/0000000000534C56/flags/boot2.flag"
           }
         ]
       }
     ],
     "category": "Patches",
-    "description": "Signature patches to run games",
-    "name": "Sigpatches",
-    "repo": "NexlifyHub/SystemEnhancer",
+    "description": "Sysmodule for injecting custom codes into retail Nintendo Switch games.",
+    "name": "SaltyNX",
+    "repo": "masagrator/SaltyNX",
     "source_type": "github_release"
   },
   "Theme-Patches": {
@@ -219,49 +330,9 @@
     "repo": "https://github.com/exelix11/theme-patches/archive/refs/heads/master.zip",
     "source_type": "direct_url"
   },
-  "Warmboot-Extractor": {
-    "asset_info": {
-      "version": "1.0.1"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "Warmboot-Extractor-*.zip",
-        "processing_steps": [
-          {
-            "action": "unzip_to_root"
-          }
-        ]
-      }
-    ],
-    "category": "Payloads",
-    "description": "",
-    "name": "Warmboot-Extractor",
-    "repo": "sthetix/Warmboot-Extractor",
-    "source_type": "github_release"
-  },
-  "aio_updater": {
-    "asset_info": {
-      "version": "2.23.3"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "aio-switch-updater.zip",
-        "processing_steps": [
-          {
-            "action": "unzip_to_root"
-          }
-        ]
-      }
-    ],
-    "category": "Homebrew Apps",
-    "description": "Update everything from your Switch.",
-    "name": "AIO-Switch-Updater",
-    "repo": "HamletDuFromage/aio-switch-updater",
-    "source_type": "github_release"
-  },
   "atmosphere": {
     "asset_info": {
-      "version": "1.10.2"
+      "version": "1.11.1"
     },
     "asset_patterns": [
       {
@@ -269,11 +340,46 @@
         "processing_steps": [
           {
             "action": "unzip_to_root"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/daybreak.nro"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/reboot_to_payload.nro"
+          },
+          {
+            "action": "delete_file",
+            "path": "/switch/haze.nro"
           }
         ]
       }
     ],
     "category": "Essential",
+    "component_extras": [
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/atmosphere/config/system_settings.ini",
+        "target": "config/system_settings.ini",
+        "type": "text"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/atmosphere/hosts/default.txt",
+        "target": "hosts/default.txt",
+        "type": "text"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/atmosphere/exosphere.ini",
+        "target": "exosphere.ini",
+        "type": "text"
+      }
+    ],
     "description": "Core CFW. Essential.",
     "name": "Atmosphere",
     "repo": "Atmosphere-NX/Atmosphere",
@@ -281,7 +387,7 @@
   },
   "dbi_ru": {
     "asset_info": {
-      "version": "DBI.873.ru.zip"
+      "version": "DBI.899.ru"
     },
     "asset_patterns": [
       {
@@ -295,34 +401,23 @@
       }
     ],
     "category": "Homebrew Apps",
+    "component_extras": [
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/dbi_ru/switch/DBI_RU/dbi.config",
+        "target": "switch/DBI_RU/dbi.config",
+        "type": "text"
+      }
+    ],
     "description": "App / Game installer",
     "name": "DBI RU",
     "repo": "sthetix/dbi",
     "source_type": "github_release"
   },
-  "dns_mitm_manager": {
-    "asset_info": {
-      "version": "0.2.0"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "DNS-MITM_Manager.zip",
-        "processing_steps": [
-          {
-            "action": "unzip_to_root"
-          }
-        ]
-      }
-    ],
-    "category": "Tesla Overlays",
-    "description": "Tesla overlay for managing DNS redirection.",
-    "name": "DNS MITM Manager",
-    "repo": "sthetix/DNS-MITM_Manager",
-    "source_type": "github_release"
-  },
   "edizon_overlay": {
     "asset_info": {
-      "version": "v1.0.14"
+      "version": "v1.0.15"
     },
     "asset_patterns": [
       {
@@ -343,7 +438,7 @@
   },
   "emuiibo": {
     "asset_info": {
-      "version": "1.1.2"
+      "version": "1.1.3"
     },
     "asset_patterns": [
       {
@@ -364,7 +459,7 @@
   },
   "hekate": {
     "asset_info": {
-      "version": "V6.5.1"
+      "version": "v6.5.2"
     },
     "asset_patterns": [
       {
@@ -377,6 +472,92 @@
       }
     ],
     "category": "Essential",
+    "component_extras": [
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/res/emummc.bmp",
+        "target": "bootloader/res/emummc.bmp",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/res/sysnand.bmp",
+        "target": "bootloader/res/sysnand.bmp",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/res/icon_payload.bmp",
+        "target": "bootloader/res/icon_payload.bmp",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/res/icon_switch.bmp",
+        "target": "bootloader/res/icon_switch.bmp",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/res/ofw.bmp",
+        "target": "bootloader/res/ofw.bmp",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/res/stock.bmp",
+        "target": "bootloader/res/stock.bmp",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/hekate_ipl.ini",
+        "target": "bootloader/hekate_ipl.ini",
+        "type": "text"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/payloads/hwfly_toolbox.bin",
+        "target": "bootloader/payloads/hwfly_toolbox.bin",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/payloads/Instinct-NX_toolbox.bin",
+        "target": "bootloader/payloads/Instinct-NX_toolbox.bin",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/bootloader/payloads/picofly_toolbox_0.2.bin",
+        "target": "bootloader/payloads/picofly_toolbox_0.2.bin",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/boot.dat",
+        "target": "boot.dat",
+        "type": "file"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/hekate/boot.ini",
+        "target": "boot.ini",
+        "type": "text"
+      }
+    ],
     "description": "Bootloader and tools. Essential.",
     "name": "Hekate-ext",
     "repo": "sthetix/hekate-ext",
@@ -425,7 +606,7 @@
   },
   "mission_control": {
     "asset_info": {
-      "version": "v0.14.2"
+      "version": "v0.15.1"
     },
     "asset_patterns": [
       {
@@ -446,7 +627,7 @@
   },
   "nx-ovlloader": {
     "asset_info": {
-      "version": "v2.0.0"
+      "version": "v2.0.2"
     },
     "asset_patterns": [
       {
@@ -485,48 +666,6 @@
     "description": "A payload to generate prod.info.",
     "name": "Prodinfo_gen",
     "repo": "CaramelDunes/prodinfo_gen",
-    "source_type": "github_release"
-  },
-  "quick_reboot_app": {
-    "asset_info": {
-      "version": "v2.1.0"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "Quick-Reboot.nro",
-        "processing_steps": [
-          {
-            "action": "copy_file_to_auto_folder",
-            "target_path": "switch/"
-          }
-        ]
-      }
-    ],
-    "category": "Homebrew Apps",
-    "description": "Reboot to payloads from the homebrew menu.",
-    "name": "Quick-Reboot (App)",
-    "repo": "sthetix/Quick-Reboot",
-    "source_type": "github_release"
-  },
-  "quick_reboot_ovl": {
-    "asset_info": {
-      "version": "v2.1.0"
-    },
-    "asset_patterns": [
-      {
-        "pattern": "Quick-Reboot.ovl",
-        "processing_steps": [
-          {
-            "action": "copy_file",
-            "target_path": "/switch/.overlays/"
-          }
-        ]
-      }
-    ],
-    "category": "Tesla Overlays",
-    "description": "Reboot to payloads from the Tesla.",
-    "name": "Quick-Reboot overlay",
-    "repo": "sthetix/Quick-Reboot",
     "source_type": "github_release"
   },
   "quickntp": {
@@ -571,7 +710,7 @@
   },
   "status_monitor_overlay": {
     "asset_info": {
-      "version": "1.3.2"
+      "version": "1.4.1"
     },
     "asset_patterns": [
       {
@@ -616,7 +755,7 @@
   },
   "sys_clk": {
     "asset_info": {
-      "version": "2.0.1+r21"
+      "version": "2.0.1+r25"
     },
     "asset_patterns": [
       {
@@ -637,7 +776,7 @@
   },
   "sys_patch": {
     "asset_info": {
-      "version": "v1.5.9"
+      "version": "v1.6.2.0"
     },
     "asset_patterns": [
       {
@@ -652,12 +791,12 @@
     "category": "Tesla Overlays",
     "description": "A sysmodule to apply runtime code patches.",
     "name": "Sys-patch",
-    "repo": "impeeza/sys-patch",
+    "repo": "borntohonk/sys-patch",
     "source_type": "github_release"
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.4.7"
+      "version": "v1.5.1"
     },
     "asset_patterns": [
       {
@@ -679,7 +818,7 @@
   },
   "tegraexplorer": {
     "asset_info": {
-      "version": "4.2.1"
+      "version": "v4.2.2"
     },
     "asset_patterns": [
       {
@@ -693,8 +832,8 @@
     ],
     "category": "Payloads",
     "description": "A payload-based file explorer.",
-    "name": "TegraExplorer",
-    "repo": "sthetix/TegraExplorer",
+    "name": "TegraExplorer-Ext",
+    "repo": "sthetix/TegraExplorer-Ext",
     "source_type": "github_release"
   },
   "tinwoo": {
@@ -720,7 +859,7 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.2.9"
+      "version": "v2.4.4"
     },
     "asset_patterns": [
       {
@@ -734,6 +873,15 @@
       }
     ],
     "category": "Tesla Overlays",
+    "component_extras": [
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/ultrahand_overlay/config/ultrahand/config.ini",
+        "target": "config/ultrahand/config.ini",
+        "type": "text"
+      }
+    ],
     "description": "A new Tesla menu reimplementation.",
     "name": "Ultrahand Overlay",
     "repo": "ppkantorski/Ultrahand-Overlay",
