@@ -10,7 +10,7 @@ A unified tool for building, editing, and managing configurable HATS packs.
 
 HATSKit Pro is a comprehensive Windows application that simplifies the process of creating, editing, and managing HATS (Homebrew Application Title Server) packs for Nintendo Switch custom firmware. With an intuitive graphical interface, you can easily build custom packs, edit component definitions, and manage installed components on your SD card.
 
-HATSKit Pro 2.0 adds a cleaner pack architecture: component-owned extras. Configs and resources such as `bootloader/hekate_ipl.ini`, Hekate BMP files, Ultrahand config files, DBI configs, and other component-specific files can now live with the component that owns them instead of being hidden inside a global `skeleton.zip`.
+HATSKit Pro uses a component-owned extras system for pack-specific configs and resources. Files such as `bootloader/hekate_ipl.ini`, Hekate BMP files, Ultrahand config files, DBI configs, and other component-specific files can live with the component that owns them instead of being hidden inside a global `skeleton.zip`.
 
 `assets/skeleton.zip` is now optional legacy fallback. If it exists, the builder extracts it first. If it is missing, the builder continues and relies on component extras and downloaded component assets.
 
