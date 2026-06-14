@@ -1,7 +1,7 @@
 """
 builder.py - Pack Builder Module
 Handles all Pack Builder tab logic and functionality
-HATSKit Pro v2.0.0
+HATSKit Pro v2.0.1
 """
 
 import ttkbootstrap as ttk
@@ -34,7 +34,21 @@ class PackBuilder:
 
         # Connect event handlers to UI widgets
         self.connect_events()
-    
+
+    def _github_api_request(self, url):
+        """Create a GitHub API request with optional PAT authentication."""
+        headers = {
+            'Accept': 'application/vnd.github.v3+json',
+            'User-Agent': 'HATSKit-Pro-Builder'
+        }
+
+        token = self.gui.github_pat.get().strip() if hasattr(self.gui, 'github_pat') else ''
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+            headers['X-GitHub-Api-Version'] = '2022-11-28'
+
+        return urllib.request.Request(url, headers=headers)
+
     def connect_events(self):
         """Connect event handlers to UI elements"""
         # Search and filter
@@ -206,8 +220,7 @@ class PackBuilder:
         try:
             # Fetch recent releases to build inheritance chain (3 is enough for inheritance)
             api_url = f"https://api.github.com/repos/{self.ATMOSPHERE_REPO}/releases?per_page=3"
-            req = urllib.request.Request(api_url)
-            req.add_header('Accept', 'application/vnd.github.v3+json')
+            req = self._github_api_request(api_url)
 
             if log:
                 log(f"  Fetching Atmosphere release info to determine supported firmware...")
@@ -374,8 +387,12 @@ class PackBuilder:
             display_name = comp.get('name', comp_id)
             is_updated = False
 
+            # Mark components that were not present in the last build manifest
+            if comp_id not in last_build_components:
+                display_name = display_name + " +"
+                is_updated = True
             # Check if this component has a newer version than last build
-            if comp_id in last_build_components and fetched_version != 'N/A':
+            elif fetched_version != 'N/A':
                 last_build_version = last_build_components[comp_id].get('version', 'N/A')
                 # If versions differ, mark as updated
                 if last_build_version != 'N/A' and fetched_version != last_build_version:
@@ -561,9 +578,20 @@ class PackBuilder:
                                command=progress_window.destroy, bootstyle="primary")
         close_btn.pack(pady=10)
 
+        def run_fetch_worker():
+            try:
+                self._worker_fetch_versions(progress_window, log_text, progress, close_btn, selected)
+            except Exception as e:
+                error_msg = f"Version fetch failed unexpectedly:\n{e}"
+                self.gui.root.after(100, lambda: [
+                    progress.stop(),
+                    self.fetch_button.config(state=NORMAL) if self.fetch_button else None,
+                    close_btn.config(state=NORMAL),
+                    self.gui.show_custom_info("Fetch Failed", error_msg, parent=progress_window, height=220)
+                ])
+
         # Run the fetch in a separate thread
-        thread = threading.Thread(target=self._worker_fetch_versions,
-                                  args=(progress_window, log_text, progress, close_btn, selected), daemon=True)
+        thread = threading.Thread(target=run_fetch_worker, daemon=True)
         thread.start()
 
     def _worker_fetch_versions(self, window, log_widget, progress_bar, close_button, selected_ids):
@@ -652,8 +680,7 @@ class PackBuilder:
             log(f"Checking: {comp_data['name']} ({repo})")
 
             try:
-                req = urllib.request.Request(api_url)
-                req.add_header('Accept', 'application/vnd.github.v3+json')
+                req = self._github_api_request(api_url)
                 with urllib.request.urlopen(req, timeout=10) as response:
                     if response.status == 200:
                         releases = json.loads(response.read().decode())
@@ -704,7 +731,7 @@ class PackBuilder:
 
         self.gui.root.after(100, lambda: [
             progress_bar.stop(),
-            self.fetch_button.config(state=NORMAL),
+            self.fetch_button.config(state=NORMAL) if self.fetch_button else None,
             close_button.config(state=NORMAL),
             self.update_builder_preview(), # Update the preview to show new versions
             self.gui.show_custom_info("Fetch Complete", summary, parent=window, height=230)
@@ -1152,8 +1179,7 @@ class PackBuilder:
             else:
                 log(f"  Fetching latest release info...")
 
-            req = urllib.request.Request(api_url)
-            req.add_header('Accept', 'application/vnd.github.v3+json')
+            req = self._github_api_request(api_url)
 
             try:
                 with urllib.request.urlopen(req, timeout=15) as response:

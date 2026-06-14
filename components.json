@@ -209,7 +209,7 @@
   },
   "HATS-Tools": {
     "asset_info": {
-      "version": "1.6.2"
+      "version": "1.6.3"
     },
     "asset_patterns": [
       {
@@ -229,7 +229,7 @@
   },
   "Lockpick_RCM_Pro": {
     "asset_info": {
-      "version": "2.0.2"
+      "version": "2.0.3"
     },
     "asset_patterns": [
       {
@@ -361,15 +361,8 @@
       {
         "enabled": true,
         "overwrite": true,
-        "source": "assets/component_extras/atmosphere/config/system_settings.ini",
-        "target": "config/system_settings.ini",
-        "type": "text"
-      },
-      {
-        "enabled": true,
-        "overwrite": true,
-        "source": "assets/component_extras/atmosphere/hosts/default.txt",
-        "target": "hosts/default.txt",
+        "source": "assets/component_extras/atmosphere/atmosphere/hosts/default.txt",
+        "target": "atmosphere/hosts/default.txt",
         "type": "text"
       },
       {
@@ -377,6 +370,13 @@
         "overwrite": true,
         "source": "assets/component_extras/atmosphere/exosphere.ini",
         "target": "exosphere.ini",
+        "type": "text"
+      },
+      {
+        "enabled": true,
+        "overwrite": true,
+        "source": "assets/component_extras/atmosphere/atmosphere/config/system_settings.ini",
+        "target": "atmosphere/config/system_settings.ini",
         "type": "text"
       }
     ],
@@ -387,7 +387,7 @@
   },
   "dbi_ru": {
     "asset_info": {
-      "version": "DBI.899.ru"
+      "version": "DBI.900.ru"
     },
     "asset_patterns": [
       {
@@ -646,26 +646,24 @@
     "repo": "ppkantorski/nx-ovlloader",
     "source_type": "github_release"
   },
-  "prodinfo_gen": {
+  "prodinforge": {
     "asset_info": {
-      "version": "v1.1.0"
+      "version": "1.0.0"
     },
     "asset_patterns": [
       {
-        "pattern": "prodinfo_gen.bin",
+        "pattern": "ProdinForge*.zip",
         "processing_steps": [
           {
-            "action": "copy_file",
-            "target_path": "/bootloader/payloads/"
+            "action": "unzip_to_root"
           }
         ]
       }
     ],
     "category": "Payloads",
-    "default": false,
-    "description": "A payload to generate prod.info.",
-    "name": "Prodinfo_gen",
-    "repo": "CaramelDunes/prodinfo_gen",
+    "description": "PRODINFO request generation and provisioning workflow for Switch repair/modding workflows.",
+    "name": "ProdinForge",
+    "repo": "sthetix/ProdinForge",
     "source_type": "github_release"
   },
   "quickntp": {
@@ -796,7 +794,7 @@
   },
   "sysmodules_overlay": {
     "asset_info": {
-      "version": "v1.5.1"
+      "version": "v1.5.2"
     },
     "asset_patterns": [
       {
@@ -859,7 +857,7 @@
   },
   "ultrahand_overlay": {
     "asset_info": {
-      "version": "v2.4.4"
+      "version": "v2.4.5"
     },
     "asset_patterns": [
       {

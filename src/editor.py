@@ -1,7 +1,7 @@
 """
 editor.py - Component Editor Module
 Handles all Component Editor tab logic and functionality
-HATSKit Pro v2.0.0
+HATSKit Pro v2.0.1
 """
 
 import ttkbootstrap as ttk
@@ -9,8 +9,10 @@ from ttkbootstrap.constants import *
 import json
 import urllib.request
 import urllib.error
+import urllib.parse
 import threading
 import datetime
+import re
 import shutil
 import tempfile
 import zipfile
@@ -60,6 +62,8 @@ class ComponentEditor:
                         child.config(command=self.open_skeleton_editor)
                     elif text == "Edit Extras":
                         child.config(command=self.open_component_extras_editor)
+                    elif text == "Scan Repo":
+                        child.config(command=self.autofill_from_github_repo)
                     elif text == "Save Changes":
                         child.config(command=self.save_changes)
                     elif text == "Load Preset":
@@ -407,6 +411,7 @@ class ComponentEditor:
                     skeleton_tree.focus(item)
                     skeleton_tree.see(item)
                     break
+
             edit_text_file()
 
         def delete_file():
@@ -446,6 +451,105 @@ class ComponentEditor:
                 return normalized in {name.replace('\\', '/') for name in zip_ref.namelist()}
         except Exception:
             return False
+
+    def _parse_github_repo(self, repo_value):
+        """Return owner/repo from a GitHub repo field or URL."""
+        repo_value = repo_value.strip()
+        if not repo_value:
+            return None
+
+        if repo_value.startswith(("http://", "https://")):
+            parsed = urllib.parse.urlparse(repo_value)
+            if parsed.netloc.lower() not in ("github.com", "www.github.com"):
+                return None
+            parts = [part for part in parsed.path.strip('/').split('/') if part]
+            if len(parts) < 2:
+                return None
+            owner, repo = parts[0], parts[1]
+        else:
+            parts = [part for part in repo_value.strip('/').split('/') if part]
+            if len(parts) != 2:
+                return None
+            owner, repo = parts
+
+        if repo.endswith(".git"):
+            repo = repo[:-4]
+
+        valid = re.compile(r"^[A-Za-z0-9_.-]+$")
+        if not valid.match(owner) or not valid.match(repo):
+            return None
+        return f"{owner}/{repo}"
+
+    def _default_component_id_from_repo(self, repo_name):
+        """Build a component ID candidate from a repository name."""
+        comp_id = repo_name.lower().replace('-', '_').replace('.', '_')
+        comp_id = re.sub(r"[^a-z0-9_]+", "_", comp_id)
+        comp_id = re.sub(r"_+", "_", comp_id).strip('_')
+        return comp_id or repo_name.lower()
+
+    def autofill_from_github_repo(self):
+        """Fetch GitHub repository metadata and fill empty component fields."""
+        if self.gui.editor_source_type.get() != 'github_release':
+            self.gui.show_custom_info("Scan Repo", "Set Source Type to github_release first.", width=420, height=180)
+            return
+
+        repo = self._parse_github_repo(self.gui.editor_repo.get())
+        if not repo:
+            self.gui.show_custom_info("Invalid Repository",
+                                      "Enter a GitHub repository as owner/repo or a full github.com URL.",
+                                      width=460, height=190)
+            return
+
+        self.gui.editor_repo.delete(0, END)
+        self.gui.editor_repo.insert(0, repo)
+        threading.Thread(target=self._worker_autofill_from_github_repo, args=(repo,), daemon=True).start()
+
+    def _worker_autofill_from_github_repo(self, repo):
+        try:
+            api_url = f"https://api.github.com/repos/{repo}"
+            headers = {
+                "Accept": "application/vnd.github+json",
+                "User-Agent": "HATSKitPro"
+            }
+            token = self.gui.github_pat.get().strip() if hasattr(self.gui, 'github_pat') else ''
+            if token:
+                headers["Authorization"] = f"token {token}"
+
+            request = urllib.request.Request(api_url, headers=headers)
+            with urllib.request.urlopen(request, timeout=15) as response:
+                repo_data = json.loads(response.read().decode('utf-8'))
+
+            self.gui.root.after(0, lambda: self._apply_github_repo_autofill(repo, repo_data))
+        except urllib.error.HTTPError as e:
+            message = f"GitHub API returned HTTP {e.code} for {repo}."
+            self.gui.root.after(0, lambda: self.gui.show_custom_info("Scan Failed", message, width=460, height=190))
+        except Exception as e:
+            message = f"Failed to scan {repo}:\n{e}"
+            self.gui.root.after(0, lambda: self.gui.show_custom_info("Scan Failed", message, width=500, height=220))
+
+    def _apply_github_repo_autofill(self, repo, repo_data):
+        repo_name = repo_data.get('name') or repo.split('/')[-1]
+        full_name = repo_data.get('full_name') or repo
+        display_name = repo_data.get('name') or repo_name
+        description = repo_data.get('description') or ''
+
+        if not self.gui.editor_id.get().strip():
+            comp_id = self._default_component_id_from_repo(repo_name)
+            if comp_id in self.gui.components_data:
+                owner = full_name.split('/')[0].lower()
+                comp_id = self._default_component_id_from_repo(f"{owner}_{repo_name}")
+            self.gui.editor_id.insert(0, comp_id)
+
+        if not self.gui.editor_name.get().strip():
+            self.gui.editor_name.insert(0, display_name)
+
+        current_desc = self.gui.editor_description.get('1.0', END).strip()
+        if description and not current_desc:
+            self.gui.editor_description.insert('1.0', description)
+
+        self.gui.show_custom_info("Repo Scanned",
+                                  f"Loaded metadata from {full_name}.\n\nEmpty Component ID, Name, and Description fields were populated.",
+                                  width=500, height=220)
 
     # ==================== Component Extras Editor ====================
 
@@ -618,6 +722,50 @@ class ComponentEditor:
             if target == "":
                 return ""
             return target.rstrip('/') + '/'
+
+        def edit_target_path():
+            idx = selected_index()
+            if idx is None:
+                self.gui.show_custom_info("No Selection", "Please select an extra to edit.", parent=dialog)
+                return
+
+            extras = get_extras()
+            extra = extras[idx]
+            old_target = extra.get('target', '')
+            new_target = prompt_target("Edit Target Path", old_target)
+            if new_target is None or new_target == old_target:
+                return
+
+            source_path = Path(extra.get('source')) if extra.get('source') else default_source_for(old_target)
+            new_source_path = default_source_for(new_target)
+            moved_source = False
+
+            try:
+                source_path.resolve().relative_to(extras_dir.resolve())
+                source_is_component_owned = True
+            except ValueError:
+                source_is_component_owned = False
+
+            if source_is_component_owned and source_path.exists() and not new_source_path.exists():
+                new_source_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(source_path), str(new_source_path))
+                moved_source = True
+
+            extra['target'] = new_target
+            extra['type'] = "text" if is_text_target(new_target) else "file"
+            if moved_source:
+                extra['source'] = str(new_source_path).replace('\\', '/')
+
+            persist()
+
+            if source_is_component_owned and source_path.exists() and new_source_path.exists():
+                self.gui.show_custom_info(
+                    "Target Path Updated",
+                    "The target path was updated, but the source file was not moved because a file already exists at the new component extras path.",
+                    parent=dialog,
+                    width=560,
+                    height=220
+                )
 
         def edit_text_extra(existing_index):
             extras = get_extras()
@@ -815,8 +963,9 @@ class ComponentEditor:
             persist()
 
         ttk.Button(button_frame, text="Add File", bootstyle="success-outline", command=lambda: add_file_extra()).pack(fill=X, pady=3)
-        ttk.Button(button_frame, text="Scan Folder", bootstyle="primary-outline", command=scan_extras_folder).pack(fill=X, pady=3)
+        ttk.Button(button_frame, text="Scan Folder", bootstyle="primary", command=scan_extras_folder).pack(fill=X, pady=3)
         ttk.Button(button_frame, text="Edit", bootstyle="info-outline", command=edit_selected).pack(fill=X, pady=3)
+        ttk.Button(button_frame, text="Edit Target Path", bootstyle="info-outline", command=edit_target_path).pack(fill=X, pady=3)
         ttk.Button(button_frame, text="Enable/Disable", bootstyle="warning-outline", command=toggle_selected).pack(fill=X, pady=3)
         ttk.Button(button_frame, text="Remove", bootstyle="danger-outline", command=remove_selected).pack(fill=X, pady=3)
         ttk.Button(button_frame, text="Close", bootstyle="secondary", command=dialog.destroy).pack(side=BOTTOM, fill=X, pady=3)
@@ -1235,11 +1384,15 @@ class ComponentEditor:
             else:
                 extracted_version = "N/A"
         else:  # github_release
-            repo = self.gui.editor_repo.get().strip()
+            repo = self._parse_github_repo(self.gui.editor_repo.get())
             if not repo:
-                self.gui.show_custom_info("Validation Error", "Repository cannot be empty for GitHub releases.")
+                self.gui.show_custom_info("Validation Error",
+                                          "Repository must be owner/repo or a full GitHub repository URL.",
+                                          width=460)
                 comp_id_entry.config(state=DISABLED if not is_new_component else NORMAL)
                 return
+            self.gui.editor_repo.delete(0, END)
+            self.gui.editor_repo.insert(0, repo)
 
             # Check if using multi-asset or single-asset format
             asset_list_items = self.gui.editor_assets_list.get_children()

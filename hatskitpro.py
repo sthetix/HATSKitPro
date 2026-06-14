@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v2.0.0 - Main GUI
+HATSKit Pro v2.0.1 - Main GUI
 A unified tool for building and managing HATS packs
 """
 
@@ -20,7 +20,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
@@ -595,10 +595,14 @@ class HATSKitProGUI:
         self.editor_source_type.grid(row=6, column=1, sticky=EW, pady=5, padx=(0, 10))
 
         # --- Dynamic Source Fields ---
-        self.editor_repo_label = ttk.Label(form, text="[User]/[Repo]:", font=('Segoe UI', 9, 'bold'))
+        self.editor_repo_label = ttk.Label(form, text="GitHub URL:", font=('Segoe UI', 9, 'bold'))
         self.editor_repo_label.grid(row=7, column=0, sticky=W, pady=5, padx=(0, 10))
-        self.editor_repo = ttk.Entry(form, width=40)
-        self.editor_repo.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
+        self.editor_repo_frame = ttk.Frame(form)
+        self.editor_repo_frame.grid(row=7, column=1, sticky=EW, pady=5, padx=(0, 10))
+        self.editor_repo_frame.columnconfigure(0, weight=1)
+        self.editor_repo = ttk.Entry(self.editor_repo_frame, width=40)
+        self.editor_repo.grid(row=0, column=0, sticky=EW)
+        ttk.Button(self.editor_repo_frame, text="Scan Repo", bootstyle="info-outline").grid(row=0, column=1, padx=(5, 0))
         
         # --- Single Asset Pattern (backward compatible) ---
         self.editor_pattern_label = ttk.Label(form, text="Asset Pattern:", font=('Segoe UI', 9, 'bold'))
@@ -638,7 +642,7 @@ class HATSKitProGUI:
             source_type = self.editor_source_type.get()
             if source_type == 'github_release':
                 self.editor_repo_label.grid()
-                self.editor_repo.grid()
+                self.editor_repo_frame.grid()
                 # Show multi-asset UI by default for github_release
                 self.editor_pattern_label.grid_remove()
                 self.editor_pattern.grid_remove()
@@ -650,7 +654,7 @@ class HATSKitProGUI:
                 self.editor_steps_info.config(text="(no asset selected)")
             elif source_type == 'direct_url':
                 self.editor_repo_label.grid_remove()
-                self.editor_repo.grid_remove()
+                self.editor_repo_frame.grid_remove()
                 self.editor_pattern_label.grid_remove()
                 self.editor_pattern.grid_remove()
                 self.editor_assets_label.grid_remove()
