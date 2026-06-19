@@ -49,6 +49,20 @@ class PackBuilder:
 
         return urllib.request.Request(url, headers=headers)
 
+    def _github_asset_request(self, url):
+        """Create a request that downloads a GitHub release asset."""
+        headers = {
+            'Accept': 'application/octet-stream',
+            'User-Agent': 'HATSKit-Pro-Builder'
+        }
+
+        token = self.gui.github_pat.get().strip() if hasattr(self.gui, 'github_pat') else ''
+        if token:
+            headers['Authorization'] = f'Bearer {token}'
+            headers['X-GitHub-Api-Version'] = '2022-11-28'
+
+        return urllib.request.Request(url, headers=headers)
+
     def connect_events(self):
         """Connect event handlers to UI elements"""
         # Search and filter
@@ -1208,11 +1222,12 @@ class PackBuilder:
                         # Download asset from target release
                         for asset in target_release.get('assets', []):
                             if fnmatch.fnmatch(asset['name'].lower(), pattern.lower()):
-                                url = asset['browser_download_url']
+                                display_url = asset['browser_download_url']
+                                url = asset.get('url', display_url)
                                 filename = Path(temp_dir) / asset['name']
                                 asset_size = asset.get('size', 0)
 
-                                log(f"  Downloading: {url}")
+                                log(f"  Downloading: {display_url}")
                                 if asset_size > 0:
                                     size_mb = asset_size / (1024 * 1024)
                                     log(f"  Size: {size_mb:.2f} MB")
@@ -1291,9 +1306,15 @@ class PackBuilder:
                 if attempt > 0:
                     log(f"  ⟳ Retry attempt {attempt}/{retries}...")
 
-                # Create request with timeout
-                req = urllib.request.Request(url)
-                req.add_header('User-Agent', 'HATSKit-Pro-Builder')
+                # Authenticate GitHub downloads when a PAT is configured. GitHub
+                # returns 404 for unauthenticated assets in private repositories.
+                if url.startswith('https://api.github.com/repos/') and '/releases/assets/' in url:
+                    req = self._github_asset_request(url)
+                elif url.startswith(('https://github.com/', 'https://api.github.com/')):
+                    req = self._github_api_request(url)
+                else:
+                    req = urllib.request.Request(url)
+                    req.add_header('User-Agent', 'HATSKit-Pro-Builder')
 
                 # Open connection with timeout
                 with urllib.request.urlopen(req, timeout=timeout) as response:

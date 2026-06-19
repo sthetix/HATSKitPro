@@ -303,7 +303,8 @@ Processing steps define how downloaded assets are extracted and placed in the HA
 ### config.json
 
 Stores application settings:
-- `github_pat`: Your GitHub Personal Access Token (optional)
+- `github_pat`: Your GitHub Personal Access Token (optional). It is also used to
+  access release metadata and assets from private repositories allowed by the token.
 - `download_chunk_size`: Download chunk size in bytes (default: 2MB)
 
 ### components.json
@@ -389,7 +390,10 @@ Without authentication, GitHub API limits you to 60 requests per hour. With a Pe
 1. Go to [GitHub Settings > Developer settings > Personal access tokens](https://github.com/settings/tokens)
 2. Click "Generate new token (classic)"
 3. Give it a descriptive name (e.g., "HATSKit Pro")
-4. No special scopes/permissions needed for public repositories
+4. For public repositories, no additional repository permissions are needed. For
+   private repositories, a fine-grained token needs access to the selected
+   repositories (or all repositories) with **Contents: Read-only**. A classic token
+   needs the `repo` scope.
 5. Click "Generate token"
 6. Copy the token and paste it in HATSKit Pro settings
 
