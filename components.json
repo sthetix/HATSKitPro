@@ -107,7 +107,7 @@
   },
   "Disable_remap_dialog": {
     "asset_info": {
-      "version": "v1.0.12"
+      "version": "v1.0.13"
     },
     "asset_patterns": [
       {
@@ -168,7 +168,7 @@
   },
   "FuseCheck": {
     "asset_info": {
-      "version": "1.0.3"
+      "version": "1.0.4"
     },
     "asset_patterns": [
       {
@@ -332,11 +332,11 @@
   },
   "atmosphere": {
     "asset_info": {
-      "version": "1.11.1"
+      "version": "1.11.2"
     },
     "asset_patterns": [
       {
-        "pattern": "atmosphere-*.zip",
+        "pattern": "atmosphere*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -382,7 +382,7 @@
     ],
     "description": "Core CFW. Essential.",
     "name": "Atmosphere",
-    "repo": "Atmosphere-NX/Atmosphere",
+    "repo": "atmosphere-nx/atmosphere",
     "source_type": "github_release"
   },
   "dbi_ru": {
@@ -459,11 +459,11 @@
   },
   "hekate": {
     "asset_info": {
-      "version": "v6.5.2"
+      "version": "6.5.3"
     },
     "asset_patterns": [
       {
-        "pattern": "hekate-ext*.zip",
+        "pattern": "hekatos*.zip",
         "processing_steps": [
           {
             "action": "unzip_to_root"
@@ -559,8 +559,8 @@
       }
     ],
     "description": "Bootloader and tools. Essential.",
-    "name": "Hekate-ext",
-    "repo": "sthetix/hekate-ext",
+    "name": "Hekatos",
+    "repo": "sthetix/hekatos",
     "source_type": "github_release"
   },
   "jksv": {
@@ -606,7 +606,7 @@
   },
   "mission_control": {
     "asset_info": {
-      "version": "v0.15.1"
+      "version": "v0.15.2"
     },
     "asset_patterns": [
       {
@@ -774,7 +774,7 @@
   },
   "sys_patch": {
     "asset_info": {
-      "version": "v1.6.2.0"
+      "version": "v1.6.2.3"
     },
     "asset_patterns": [
       {

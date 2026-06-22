@@ -1,7 +1,7 @@
 """
 editor.py - Component Editor Module
 Handles all Component Editor tab logic and functionality
-HATSKit Pro v2.0.1
+HATSKit Pro v2.0.2
 """
 
 import ttkbootstrap as ttk
@@ -549,7 +549,7 @@ class ComponentEditor:
 
         self.gui.show_custom_info("Repo Scanned",
                                   f"Loaded metadata from {full_name}.\n\nEmpty Component ID, Name, and Description fields were populated.",
-                                  width=500, height=220)
+                                  width=500, height=260)
 
     # ==================== Component Extras Editor ====================
 

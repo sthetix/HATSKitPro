@@ -1,7 +1,7 @@
 """
 builder.py - Pack Builder Module
 Handles all Pack Builder tab logic and functionality
-HATSKit Pro v2.0.1
+HATSKit Pro v2.0.2
 """
 
 import ttkbootstrap as ttk
@@ -31,6 +31,7 @@ class PackBuilder:
         """Initialize with reference to main GUI"""
         self.gui = main_gui
         self.fetch_button = None # To hold a reference to the button
+        self.active_builder_preset = None
 
         # Connect event handlers to UI widgets
         self.connect_events()
@@ -62,6 +63,12 @@ class PackBuilder:
             headers['X-GitHub-Api-Version'] = '2022-11-28'
 
         return urllib.request.Request(url, headers=headers)
+
+    def _sanitize_filename_part(self, value):
+        """Return a filesystem-safe filename segment."""
+        safe_value = re.sub(r'[<>:"/\\|?*\s]+', '-', value.strip())
+        safe_value = re.sub(r'-+', '-', safe_value).strip('-.')
+        return safe_value
 
     def connect_events(self):
         """Connect event handlers to UI elements"""
@@ -465,6 +472,7 @@ class PackBuilder:
             for comp_id, version in preset.get('manual_versions', {}).items()
             if comp_id in self.gui.components_data
         }
+        self.active_builder_preset = preset_name
         self.filter_builder_components()
         self.update_builder_preview()
 
@@ -556,7 +564,8 @@ class PackBuilder:
         build_comment = self.gui.build_comment.get().strip()
 
         # Show progress window
-        self.show_build_progress(selected, output_file, build_comment)
+        preset_name = self.active_builder_preset if self.active_builder_preset in self.gui.presets_data else None
+        self.show_build_progress(selected, output_file, build_comment, preset_name)
     
     def fetch_github_versions(self):
         """Fetch latest versions from GitHub for components without a specific version set"""
@@ -751,7 +760,7 @@ class PackBuilder:
             self.gui.show_custom_info("Fetch Complete", summary, parent=window, height=230)
         ])
 
-    def show_build_progress(self, selected, output_file, build_comment=""):
+    def show_build_progress(self, selected, output_file, build_comment="", preset_name=None):
         """Show build progress window"""
         progress_window = ttk.Toplevel(self.gui.root)
         progress_window.title("Building Pack")
@@ -776,11 +785,11 @@ class PackBuilder:
 
         # Run build in a separate thread
         thread = threading.Thread(target=self._worker_build_pack, 
-                                  args=(selected, output_file, progress_window, log_text, progress, close_btn, build_comment), 
+                                  args=(selected, output_file, progress_window, log_text, progress, close_btn, build_comment, preset_name),
                                   daemon=True)
         thread.start()
 
-    def _worker_build_pack(self, selected_ids, output_file, window, log_widget, progress_bar, close_button, build_comment=""):
+    def _worker_build_pack(self, selected_ids, output_file, window, log_widget, progress_bar, close_button, build_comment="", preset_name=None):
         """Worker thread to build the HATS pack."""
         def log(message):
             log_widget.config(state='normal')
@@ -806,6 +815,7 @@ class PackBuilder:
             "builder_version": self.gui.VERSION,
             "supported_firmware": last_build_fw,  # Inherit from last build initially
             "content_hash": "pending",            # Will be computed after downloads
+            "preset": preset_name or "",
             "components": {}
         }
 
@@ -939,7 +949,13 @@ class PackBuilder:
             # --- Determine final filename with correct hash ---
             now = datetime.datetime.now(datetime.timezone.utc)
             date_str = now.strftime("%Y-%m-%d")
-            final_base_name = f"HATS-{date_str}-{content_hash}"
+            preset_filename_suffix = ""
+            if preset_name:
+                safe_preset_name = self._sanitize_filename_part(preset_name)
+                if safe_preset_name:
+                    preset_filename_suffix = f"-{safe_preset_name}"
+            final_base_name = f"HATS-{date_str}-{content_hash}{preset_filename_suffix}"
+            version_base_name = f"HATS-{date_str}-{content_hash}"
 
             # Determine the final output path
             output_path = Path(output_file)
@@ -970,7 +986,8 @@ class PackBuilder:
 
                 with open(metadata_path, 'w', encoding='utf-8') as f:
                     # First line: version string as markdown header
-                    f.write(f"# {final_base_name}\n")
+                    preset_suffix = f" [{preset_name}]" if preset_name else ""
+                    f.write(f"# {version_base_name}{preset_suffix}\n")
                     f.write("# HATS Pack Summary\n\n")
 
                     # Metadata section with markdown formatting

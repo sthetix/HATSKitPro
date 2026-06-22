@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Post-Processor Module for HATSKit Pro v2.0.1
+Post-Processor Module for HATSKit Pro v2.0.2
 Handles post-extraction configuration of exosphere.ini and hosts files
 Based on HATSIFY's main.c functionality
 """

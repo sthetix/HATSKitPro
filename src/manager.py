@@ -1,7 +1,7 @@
 """
 manager.py - Manager Module
 Handles all Manager tab logic and functionality (HATS-Off)
-HATSKit Pro v2.0.1
+HATSKit Pro v2.0.2
 """
 
 import ttkbootstrap as ttk

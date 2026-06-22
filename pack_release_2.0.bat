@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 
-set "VERSION=2.0.1"
+set "VERSION=2.0.2"
 set "ROOT_DIR=%~dp0"
 set "ROOT_DIR=%ROOT_DIR:~0,-1%"
 set "RELEASE_DIR=%ROOT_DIR%\releases"

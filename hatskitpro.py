@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-HATSKit Pro v2.0.1 - Main GUI
+HATSKit Pro v2.0.2 - Main GUI
 A unified tool for building and managing HATS packs
 """
 
@@ -20,7 +20,7 @@ from src.editor import ComponentEditor
 from src.manager import PackManager
 from src.extra import PostProcessor
 
-VERSION = "2.0.1"
+VERSION = "2.0.2"
 CONFIG_FILE = 'config.json'
 COMPONENTS_FILE = 'components.json'
 MANIFEST_FILE = 'manifest.json'
