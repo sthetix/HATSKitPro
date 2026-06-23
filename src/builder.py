@@ -1587,6 +1587,19 @@ class PackBuilder:
 
                     # Find the source folder (support nested paths like "theme-patches-master/systemPatches")
                     source_folder = temp_root / subfolder_name
+                    source_label = subfolder_name
+
+                    if not source_folder.exists() and any(char in subfolder_name for char in '*?['):
+                        subfolder_pattern = subfolder_name.replace('\\', '/')
+                        matches = sorted(
+                            (path for path in temp_root.glob(subfolder_pattern) if path.is_dir()),
+                            key=lambda path: path.as_posix().lower()
+                        )
+                        if matches:
+                            source_folder = matches[0]
+                            source_label = source_folder.relative_to(temp_root).as_posix()
+                            if len(matches) > 1:
+                                log(f"    ⚠️ Multiple folders matched '{subfolder_name}', using '{source_label}'.")
 
                     if source_folder.exists() and source_folder.is_dir():
                         # Copy all files from source folder to target
@@ -1597,7 +1610,7 @@ class PackBuilder:
                                 dest_path.parent.mkdir(parents=True, exist_ok=True)
                                 shutil.copy(str(item), str(dest_path))
                                 all_processed_files.append(dest_path)
-                        log(f"    ✅ Extracted '{subfolder_name}' → {target_base_dir.relative_to(staging_dir)}")
+                        log(f"    ✅ Extracted '{source_label}' → {target_base_dir.relative_to(staging_dir)}")
                     else:
                         # Try to find the folder as a top-level directory (legacy behavior)
                         top_level_dirs = set()
