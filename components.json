@@ -884,5 +884,38 @@
     "name": "Ultrahand Overlay",
     "repo": "ppkantorski/Ultrahand-Overlay",
     "source_type": "github_release"
+  },
+  "LANywhereSelfhost": {
+    "asset_info": {
+      "version": "v0.4.7"
+    },
+    "asset_patterns": [
+      {
+        "pattern": "switch-online-0.4.7-sd.zip",
+        "processing_steps": [
+          {
+            "action": "unzip_subfolder_to_path",
+            "subfolder_name": "atmosphere",
+            "target_path": "atmosphere/"
+          },
+          {
+            "action": "unzip_subfolder_to_path",
+            "subfolder_name": "lanywhere",
+            "target_path": "lanywhere/"
+          },
+          {
+            "action": "unzip_subfolder_to_path",
+            "subfolder_name": "switch",
+            "target_path": "switch/"
+          }
+        ]
+      }
+    ],
+    "category": "Homebrew Apps",
+    "default": false,
+    "description": "Community Local Wireless relay client. Replaces ldn_mitm; reboot required.",
+    "name": "LANywhere Selfhost",
+    "repo": "https://github.com/SEc-123/lanywhere-selfhost/releases/download/v0.4.7/switch-online-0.4.7-sd.zip",
+    "source_type": "direct_url"
   }
 }
