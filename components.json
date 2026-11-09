@@ -891,31 +891,14 @@
     },
     "asset_patterns": [
       {
-        "pattern": "switch-online-0.4.7-sd.zip",
-        "processing_steps": [
-          {
-            "action": "unzip_subfolder_to_path",
-            "subfolder_name": "atmosphere",
-            "target_path": "atmosphere/"
-          },
-          {
-            "action": "unzip_subfolder_to_path",
-            "subfolder_name": "lanywhere",
-            "target_path": "lanywhere/"
-          },
-          {
-            "action": "unzip_subfolder_to_path",
-            "subfolder_name": "switch",
-            "target_path": "switch/"
-          }
-        ]
+        "pattern": "switch-online-0.4.7-hats.zip"
       }
     ],
     "category": "Homebrew Apps",
     "default": false,
-    "description": "Community Local Wireless relay client. Replaces ldn_mitm; reboot required.",
-    "name": "LANywhere Selfhost",
-    "repo": "https://github.com/SEc-123/lanywhere-selfhost/releases/download/v0.4.7/switch-online-0.4.7-sd.zip",
+    "description": "Local wireless multiplayer relay. Shares the ldn_mitm module ID.",
+    "name": "LANywhere Self-host",
+    "repo": "https://github.com/SEc-123/lanywhere-selfhost/releases/download/v0.4.7/switch-online-0.4.7-hats.zip",
     "source_type": "direct_url"
   }
 }
