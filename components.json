@@ -887,18 +887,18 @@
   },
   "LANywhereSelfhost": {
     "asset_info": {
-      "version": "v0.4.7"
+      "version": "v0.5.4"
     },
     "asset_patterns": [
       {
-        "pattern": "switch-online-0.4.7-hats.zip"
+        "pattern": "switch-online-0.5.4-hats.zip"
       }
     ],
     "category": "Homebrew Apps",
     "default": false,
     "description": "Local wireless multiplayer relay. Shares the ldn_mitm module ID.",
     "name": "LANywhere Self-host",
-    "repo": "https://github.com/SEc-123/lanywhere-selfhost/releases/download/v0.4.7/switch-online-0.4.7-hats.zip",
+    "repo": "https://github.com/SEc-123/lanywhere-selfhost/releases/download/v0.5.4/switch-online-0.5.4-hats.zip",
     "source_type": "direct_url"
   }
 }
